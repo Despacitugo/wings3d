@@ -1,0 +1,248 @@
+BUILDING WINGS 3D ON UNIX-LIKE SYSTEMS (including acOS)
+=======================================================
+
+This guide describes how you can build Wings on unix-like
+systems, such as GNU Linux, FreeBSD, Solaris, and macOS.
+
+After the general build instructions, there are separate
+instructions for building a complete, standalone installation
+package for macOS and for other Unix systems.
+
+Required software
+=================
+
+The following software is needed to get Wings running
+at all. Additional software is required if you want to
+run all plug-ins and to build an installation package.
+
+- The Wings source files. http://www.wings3d.com
+
+- Erlang/OTP 25.3.1 or later. http://www.erlang.org
+-- Compiled against wxWidgets-3.2 or later.
+
+- git or CL library at http://github.com/tonyrog/cl
+
+- rebar3 (needed for building CL).
+
+- A GNU compatible "make" program. Included with most unix-like
+  systems; otherwise get it from http://www.gnu.org.
+
+- bunzip2 for unpacking the Wings source tar file.
+  Included with most unix-like systems; otherwise get it
+  from http://sources.redhat.com/bzip2.
+
+- OpenGL header files and libraries.
+
+- OpenCL header files (optional)
+
+Summary of build process
+========================
+
+The following is a quick summary of the build process.
+
+* Download and install Erlang/OTP.
+* Install OpenGL (and OpenCL) header files (if needed).
+* Optionally install rebar.
+* Download and unpack the Wings source file.
+* Run "make".
+
+Installing Erlang/OTP
+=====================
+
+Fetch a prebuilt package of Erlang or build it.
+
+Build Erlang/OTP according to the instructions in the README file.
+
+When you have built Erlang/OTP, modify the PATH environment variable
+so that the "erl" and "erlc" programs can be started from a shell prompt.
+
+Installing rebar (optional, needed by CL)
+=========================================
+
+Download and build rebar like this:
+
+   git clone https://github.com/erlang/rebar3
+   cd rebar
+   make
+
+Read and follow the instructions that are printed.
+
+Installing CL  (optional)
+=========================
+
+CL is fetched (via git) and built automagically if it is not available in
+$ERL_LIBS (example export ERL_LIBS=/Users/bjorng/src)
+
+A built CL is not required to use wings, but recommended,
+some functionality will not be available without CL,
+but the build will not fail if building cl fails.
+
+Read cl/README for information of requirements, mainly
+OpenCL headers in the right place.
+
+You can build it separately outside of wings by:
+
+Download and build like this:
+
+   cd $ERL_LIBS
+   git clone https://github.com/tonyrog/cl.git
+   cd cl
+   rebar3 compile
+
+
+Fetching/Unpacking the Wings source code
+========================================
+
+$ git clone https://github.com/dgud/wings.git
+$ cd wings
+
+Or unpack it with
+
+$ tar jxf wings-1.0.tar.bz2
+$ cd wings-1.0
+
+Building Wings
+==============
+
+Build Wings from the directory where the sources where unpacked.
+
+Example:
+
+$ pwd
+/home/bjorng/wings-1.0
+$ make
+.
+
+<A lot of output follows>
+.
+$
+
+To run the Wings you have just build, you'll need to write a command line
+similar to this:
+
+	erl -pa <MY_WINGS_PATH>/ebin -run wings_start start_halt
+
+where you should substitute <MY_WINGS_PATH> with the path to the Wings
+source directory.
+
+Example:
+
+$ erl -pa /home/bjorng/wings-1.0/ebin -run wings_start start_halt
+$
+
+Instead of writing the command line every time you want to start Wings,
+you can package it in a script like this:
+
+#!/bin/sh
+exec erl -pa /home/bjorng/wings-1.0/ebin -run wings_start start_halt ${1+"$@"}
+
+Notes:
+
+[1] "exec" kills the shell process running the script, saving a
+    tiny amount of system memory.
+
+[2] The "${1+"$@"}" thing passes along any arguments (or none) to Wings,
+    allowing Wings to open up a wings file when it starts.
+
+
+Building an installation package for macOS
+==========================================
+
+To build everything and pack it into a DMG file, you'll need:
+
+- Xcode 11 or later
+
+Make sure that your current directory is the directory in which the
+sources were unpacked.
+
+Example:
+
+$ pwd
+/Users/bjorng/wings_releases/wings-2.2
+$
+
+To build all (including the installer), run the following command:
+
+$ make macos
+.
+<A lot of output follows>
+.
+$
+
+When everything is done, there should be a file named like:
+
+       wings-2.2-macosx-arm64.dmg
+
+or:
+
+       wings-2.2-macosx-x86_64.dmg
+
+in the current directory.
+
+
+Preparing for codesigning and notarization
+------------------------------------------
+
+If you are a member of Apple's Mac developer program, the command
+described above will also sign and notarize the code if you have
+prepared your keychain as described next. For notarization to work,
+Xcode 13 or later is required.
+
+To sign the code, the keychain must have an "Developer ID Application"
+certificate from Apple. The easiest way to obtain such certificate is
+from the Accounts tab in Settings for Xcode. It will be stored in your
+keychain.
+
+The following steps are needed to prepare for notarization:
+
+- Sign in to https://appleid.apple.com and create an app-specific
+  password for "notarytool".
+
+- Find out your team id. It can be found by signing in to
+  https://developer.apple.com and going to the Account tab. There you
+  can find the team id for your developer account. It is usually a
+  string of 10 alphanumeric characters.
+
+Run the following command to store your credentials in the keychain:
+
+$ xcrun notarytool store-credentials wings3d
+        --apple-id name@example.com
+        --team-id <team id>
+        --password <app-specific-password-for-notary-tool>
+
+When those steps have been completed, running "make macos" will
+produce a DMG file that is ready for distribution.
+
+
+Building an installation package for Linux (and other Unix systems)
+===================================================================
+
+To build everything and put it into an installation package,
+you'll need the following additional software:
+
+- makeself.sh for building the installation package
+  (a self-extractable bzip2 archive). http://megastep.org/makeself
+
+Make sure that your current directory is the directory in which the
+sources were unpacked.
+
+Example:
+
+$ pwd
+/Users/bjorng/wings_releases/wings-1.0
+$
+
+To build all (including the installation package),
+run the following command:
+
+$ make unix
+.
+<A lot of output follows>
+.
+$
+
+When everything is done, there should be a file named like
+
+	wings-1.0-linux.bzip2.run
+
+in the current directory.

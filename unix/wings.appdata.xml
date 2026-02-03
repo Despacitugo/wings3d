@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright 2014 Chris Roberts <croberts@croberts.org -->
+<component type="desktop-application">
+  <id>com.wings3d.WINGS.desktop</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>TCL</project_license>
+  <summary>An advanced subdivision modeler</summary>
+  <content_rating type="oars-1.1" />
+  <name>Wings 3D</name>
+  <developer id="com.wings3d">
+    <name>Wings3D Team</name>
+  </developer>
+  <launchable type="desktop-id">com.wings3d.WINGS.desktop</launchable>
+  <description>
+  <p>
+    Wings 3D is an advanced subdivision modeler that is both powerful and easy to use.
+    Wings has a simple interface.
+    Right-click menus give you easy access to common commands.
+    These menus are context sensitive, so depending on your selection, a
+    different menu pops up.
+  </p>
+  <p>
+    Wings has a many standard mesh modeling and selection tools such as Move,
+    Scale, Rotate, Extrude, Bevel, Bridge, Cut, and Weld.
+    Wings also features advance modelling tools such as: Sweep, Plane Cut,
+    Circularise, Intersect, Bend, Shear, and Inset, Magnets and Magnet Masking,
+    Virtual Mirror for symmetrical modeling, Tweak and Sculpt, Edge Loop and
+    Edge Ring selection and navigation tools and Smooth Preview.
+  </p>
+  </description>
+  <url type="homepage">https://www.wings3d.com</url>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://www.wings3d.com/wp-content/uploads/linux-screenshot.png</image>
+      <caption>Main Wings3D window</caption>
+    </screenshot>
+  </screenshots>
+  <releases>
+    <release version="2.4.1" type="stable" date="2025-01-15" />
+    <release version="2.4" type="stable" date="2024-11-10" />
+    <release version="2.3" type="stable" date="2023-10-05" />
+    <release version="2.2.9" type="stable" date="2022-02-26" />
+    <release version="2.2.8" type="stable" date="2021-12-30" />
+    <release version="2.2.7" type="stable" date="2021-05-16" />
+    <release version="2.2.6.1" type="stable" date="2020-05-16" />
+    <release version="2.2.5" type="stable" date="2019-11-26" />
+    <release version="2.2.4" type="stable" date="2019-04-04" />
+    <release version="2.2.3" type="stable" date="2019-02-25" />
+    <release version="2.2.2" type="stable" date="2019-01-28" />
+  </releases>
+</component>

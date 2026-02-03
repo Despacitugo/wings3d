@@ -1,0 +1,6 @@
+#
+# No CRLF conversion for DOS/Windows batch files.
+# They should be stored with the CRLF line terminators.
+#
+*.bat test eol=crlf
+*     text=auto eol=lf
