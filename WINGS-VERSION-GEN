@@ -1,0 +1,26 @@
+#!/bin/sh
+
+VSN_MK=vsn.mk
+
+if test -f version
+then
+	VSN=`cat version` || exit 1
+elif test -d .git
+then
+	VSN=`git describe --tags --abbrev=4 HEAD 2>/dev/null` || VSN="2.4.1"
+else
+	VSN="2.4.1"
+fi
+
+VSN=`expr "$VSN" : v*'\(.*\)'`
+
+if test -r $VSN_MK
+then
+	VC=`sed -e 's/^WINGS_VSN=//' < $VSN_MK`
+else
+	VC=unset
+fi
+
+test "$VSN" = "$VC" || {
+	echo "WINGS_VSN=$VSN" >$VSN_MK
+}
