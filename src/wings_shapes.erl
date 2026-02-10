@@ -30,11 +30,8 @@ menu() ->
 	     {sphere,Opt},
 	     {cone,Opt},
 	     separator,
-	     {tetrahedron,Opt},
-	     {octahedron,Opt},
-	     {octotoad, Opt},
-	     {dodecahedron,Opt},
-	     {icosahedron,Opt},
+         {polyhedron,Opt},
+         {octotoad, Opt},
 	     separator,
 	     {grid,Opt},
 	     separator,
@@ -53,6 +50,7 @@ prim_trans(K) when is_atom(K) ->
     {prim_name(K),K,prim_help(K)};
 prim_trans(Other) -> Other.
 
+prim_name(polyhedron) ->   ?STR(prim_name,polyhedron,"Polyhedron");
 prim_name(tetrahedron) ->  ?STR(prim_name,tetrahedron,"Tetrahedron");
 prim_name(octahedron) ->   ?STR(prim_name,octahedron,"Octahedron");
 prim_name(octotoad) ->     ?STR(prim_name,octotoad,"Octotoad");
@@ -65,6 +63,8 @@ prim_name(light) ->        ?STR(prim_name,light,"Light");
 prim_name(material) ->     ?STR(prim_name,material,"Material...");
 prim_name(image) ->        ?STR(prim_name,image,"Image...").
 
+prim_help(polyhedron) ->
+    ?STR(prim_help,polyhedron,"Create a polyhedron");
 prim_help(tetrahedron) ->
     ?STR(prim_help,tetrahedron,"Create a tetrahedron");
 prim_help(octahedron) ->

@@ -648,6 +648,7 @@ translation_string(about)                -> ?__(152,"About");
 
 %%%% Primitives Menu
 translation_string(shapes)            -> ?__(153,"Shapes");
+%translation_string(polyhedron)        -> ?__(291,"Polyhedron");
 translation_string(tetrahedron)       -> ?__(154,"Tetrahedron");
 translation_string(octahedron)        -> ?__(155,"Octahedron");
 translation_string(octotoad)          -> ?__(156,"Octotoad");
