@@ -79,7 +79,7 @@ doo_sabin(#we{es=Etab0}=We0) ->
     CornerEdges = wings_edge:from_faces(ScaleFaces, We5),
 
     %% Return updated #we{} and selection.
-    {We5,CornerEdges}.
+    {wings_body:clean_isolated_vertices(We5),CornerEdges}.
 
 %% Dissolve edges and isolated vertices.
 dissolve_edges(Es, We0) ->

@@ -13,7 +13,7 @@
 
 -module(wings_body).
 -export([menu/3,command/2]).
--export([auto_smooth/1,rename_selected/2,rename_filtered/3]).
+-export([auto_smooth/1,rename_selected/2,rename_filtered/3, clean_isolated_vertices/1]).
 
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
