@@ -159,21 +159,14 @@ plane_faces_bot(Ures, Vres) ->
       || I <- lists:seq(0, Vres-2), J <- lists:seq(0, Ures-2)].
 
 plane_faces_left(Ures, Vres) ->
-    A = lists:seq(0, Vres-1),
-    B = lists:map(fun(X) -> (Ures*Vres)+X end, A),
-    [lists:reverse(A) ++ B].
+    [[X, X-1, (Ures*Vres)+X-1, (Ures*Vres)+X] || X <- lists:seq(Vres-1, 1, -1)].
 
 plane_faces_right(Ures, Vres) ->
-    A = lists:seq(Ures*Vres-1, Ures*Vres-Vres, -1),
-    B = lists:map(fun(X) -> (Ures*Vres)+X end, A),
-    [lists:reverse(A) ++ B].
+    [[X, X+1, (Ures*Vres)+X+1, (Ures*Vres)+X] || X <- lists:seq(Ures*Vres-Vres, Ures*Vres-2)].
 
 plane_faces_front(Ures, Vres) ->
-    A = lists:seq(Ures*Vres-Vres, 0, -Vres),
-    B = lists:map(fun(X) -> (Ures*Vres)+X end, A),
-    [lists:reverse(A) ++ B].
+    [[X, X+Vres, (Ures*Vres)+Vres+X, (Ures*Vres)+X] || X <- lists:seq(0, (Ures*Vres)-Vres-1, Vres)].
 
 plane_faces_back(Ures, Vres) ->
-    A = lists:seq(Vres-1, Ures*Vres-1, Vres),
-    B = lists:map(fun(X) -> (Ures*Vres)+X end, A),
-    [lists:reverse(A) ++ B].
+    [[X, X-Vres, (Ures*Vres)+X-Vres, (Ures*Vres)+X] || X <- lists:seq(Ures*Vres-1, (2*Vres)-1, -Vres)].
+
