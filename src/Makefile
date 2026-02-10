@@ -105,6 +105,7 @@ MODULES= \
 	wings_scale \
 	wings_shaders \
 	wings_shapes \
+	wings_smooth \
 	wings_start \
 	wings_status \
 	wings_subdiv \
