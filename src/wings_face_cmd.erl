@@ -750,9 +750,64 @@ bridge_combine(Faces0, We0) ->
                     Faces = wings_we:new_items_as_gbset(face, We0, We),
                     bridge_combine(Faces, We);
                 _ ->
-                    bridge_error()
+                    %bridge_error()
+                    We = wings_dissolve:faces(FaceSel, We0),
+                    Faces = wings_we:new_items_as_gbset(face, We0, We),
+                    multibridge(Faces, We)
 	    end
     end.
+
+multibridge(Faces0, We0) ->
+    Faces = gb_sets:to_list(Faces0),
+    case length(Faces) rem 2 =:= 1 of 
+        true -> multibridge_error();
+        _ -> Couples = get_couples(Faces, We0, []),
+            multibridge_0(Couples, We0)
+    end.
+
+multibridge_0(Couples, We0) ->
+    case Couples of
+        [] -> {We0,gb_sets:empty()};
+        [{FA, FB}|T] ->
+            We = bridge_0([], FA, FB, We0),
+            multibridge_0(T, We)
+    end.
+
+
+get_couples(Faces, We, Acc) ->
+    case Faces of
+        [] -> Acc;
+        [H|T] -> 
+                {FaceId,_,_} = get_couple_of_face(H, T, We, {}),
+                RemainingFaces = lists:delete(FaceId, T),
+                get_couples(RemainingFaces, We, [{H,FaceId}|Acc])
+    end.
+
+get_couple_of_face(Face,Faces, We, Acc) -> 
+    case Faces of
+        [] -> Acc;
+        [H|T] when H =:= Face -> 
+            get_couple_of_face(Face,T, We, Acc);
+        [H|T] -> 
+                C1 = wings_face:center(Face, We), 
+                C2 = wings_face:center(H, We),
+                N1 = wings_face:normal(Face,We),
+                N2 = wings_face:normal(H,We),
+                C1C2 = e3d_vec:sub(C2,C1),
+                Dist = e3d_vec:len(C1C2) / 2,
+                M = e3d_vec:add(e3d_vec:divide(C1C2,2),C1),
+                P1 = e3d_vec:add(C1,e3d_vec:mul(N1,Dist)),
+                P2 = e3d_vec:add(C2,e3d_vec:mul(N2,Dist)), 
+                Area = e3d_vec:area(M,P1,P2),
+
+                case Acc of
+                    {_,MinArea, MinDist} when MinArea > Area -> get_couple_of_face(Face,T, We, {H,Area,MinDist});
+                    {_,MinArea, MinDist} when MinArea =:= Area andalso MinDist > Dist -> get_couple_of_face(Face,T, We, {H,Area,Dist});
+                    {} -> get_couple_of_face(Face,T, We, {H,Area,Dist});
+                    _ -> get_couple_of_face(Face,T, We, Acc)
+                end
+    end.
+
 
 %%% The bridge command with reference vertices.
 
@@ -1058,6 +1113,10 @@ bridge_error_neighbors() ->
 -spec bridge_error() -> no_return().
 bridge_error() ->
     bridge_error(?__(2,"Exactly two face regions must be selected.")).
+
+-spec multibridge_error() -> no_return().
+multibridge_error() ->
+    bridge_error(?__(3,"Number of faces must be even.")).
 
 -spec bridge_error(any()) -> no_return().
 bridge_error(Error) ->
