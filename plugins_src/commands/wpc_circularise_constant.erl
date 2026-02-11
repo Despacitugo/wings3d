@@ -578,3 +578,4 @@ circ_sel_error_3() ->
 -spec circ_sel_error_4() -> no_return().
 circ_sel_error_4() ->
     wings_u:error_msg(?__(2,"Selected edge loops must be non-intersecting, and be all closed.")).
+    

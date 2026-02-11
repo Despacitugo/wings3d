@@ -36,7 +36,7 @@ parse([Elem|Rest], NewMenu, Mode, Found) ->
     parse(Rest, [Elem|NewMenu], Mode, Found).
 
 circular_arc_menu(edge) ->
-    Name = ?__(1,"Circularise"),
+    Name = ?__(1,"Circularise (Uniform)"),
     Help = {?__(2,"Flatten, equalise, and inflate selected edge loops making them circular"),
        ?__(6,"Specify using secondary selections"),
        ?__(5,"Choose common plane to which loops will be flattened")},
@@ -47,7 +47,7 @@ circular_arc_menu(edge) ->
     end,
     {Name, {circular, F}, Help, []};
 circular_arc_menu({auv,edge}) ->
-    {?__(1,"Circularise"),circularise,
+    {?__(1,"Circularise (Uniform)"),circularise,
      ?__(2,"Flatten, equalise, and inflate selected edge loops making them circular")}.
 
 %%%% Commands
