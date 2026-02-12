@@ -105,12 +105,43 @@ cd ..
 
 This script installs the MinGW-w64 cross-compiler and required libraries in WSL.
 
+# Build Process
+
+## Build Process for WSL / Linux
+
+Once you made sure to clone the repository and download the dependencies, you can go back to the root of the project, then you can build it with:
+
+```bash
+make 
+```
+
+If you meet any errors, please check the "Common Build Issues and Solutions" section below.
+However, if everything goes well, you will be able to launch the application with:
+```bash
+erl -pa /home/YourName/wings/ebin -run wings_start start_halt 
+```
+
+(WSL only) or alternatively, if you're using a terminal outside of WSL, like in VSCode:
+
+```bash
+wsl -d Ubuntu bash -c "erl -pa /home/YourName/wings/ebin -run wings_start start_halt"
+```
+
+
+## Build Process for Windows
+
+Using Windows directly instead of WSL is not recommended. You can however use MSVC and CMake to build the project, which requires more setup and configuration.
+
+%TODO: yeah ill have to research how this one is done
+
+
 # Common Build Issues and Solutions
 
 If you have a compilation issue, first thing to see is if you have missing directories or files, as it can easily occure on this project.
 
 **VERY IMPORTANT** you must have the followings folders and files:
 
+- `wings` - Make sure the root of the project is exactly called that way
 - `ebin/` - Compiled Erlang modules (.beam files) for core application
 - `plugins/default/` - Default plugin modules
 - `plugins/import_export/` - Import/export plugins
