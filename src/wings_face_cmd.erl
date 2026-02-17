@@ -1137,19 +1137,23 @@ bridge_error(Error) ->
 
 pole(St) ->
     wings_sel:map_update_sel(fun pole/2, St).
+
 pole(Faces, We) ->
+    % dissolve
     We1 = wings_dissolve:faces(Faces, We),
     NewFaces = wings_we:new_items_as_gbset(face, We, We1),
     case gb_sets:is_empty(NewFaces) of
-        true -> 
-            {We1, gb_sets:empty()};
+        true ->
+            {We1,gb_sets:empty()};
         false ->
-            [Face] = gb_sets:to_list(NewFaces),
-            Vs = wings_face:vertices_ccw(Face, We1),
-            Center = wings_face:center(Face, We1),
-            We2 = wings_collapse:collapse_vertices(Vs, Center, We1),
-            {We2, NewFaces}
+            % inset 0%
+            We2 = wings_extrude_face:faces(NewFaces, We1),
+            % collapse
+            {We3, _NewVs} = wings_collapse:collapse_faces(NewFaces, We2),
+            FinalFaces = wings_we:new_items_as_gbset(face, We2, We3),
+            {We3, FinalFaces}
     end.
+    
 
 
 %%%
