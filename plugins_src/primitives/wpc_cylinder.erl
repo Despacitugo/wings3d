@@ -64,7 +64,9 @@ cylinder_dialog() ->
 	{?__(4,"Top Z Radius"), {text,1.0,[{key,top_z},{range,{0.0,infinity}}]}},
 	{" ", separator},
 	{?__(5,"Bottom X Radius"), {text,1.0,[{key,bottom_x},{range,{0.0,infinity}}]}},
-	{?__(6,"Bottom Z Radius"), {text,1.0,[{key,bottom_z},{range,{0.0,infinity}}]}}]
+	{?__(6,"Bottom Z Radius"), {text,1.0,[{key,bottom_z},{range,{0.0,infinity}}]}},
+    {" ", separator},
+    {?__(7,"Slice"), {text,1.0,[{key,slice},{range,{0.0,infinity}}]}}]   
      },
      {hradio, [
 	{cylinder_type(cylinder),cylinder},
@@ -90,6 +92,7 @@ make_cylinder(Arg, _St) ->
     TopZ = dict:fetch(top_z, ArgDict),
     BotX = dict:fetch(bottom_x, ArgDict),
     BotZ = dict:fetch(bottom_z, ArgDict),
+    Slice = dict:fetch(slice, ArgDict),
     Thickness = dict:fetch(thickness, ArgDict),
     Degrees = dict:fetch(degrees, ArgDict),
     AngleOffset = dict:fetch(angle_offset, ArgDict),
@@ -100,7 +103,7 @@ make_cylinder(Arg, _St) ->
     Type = dict:fetch(cylinder_type, ArgDict),
     case Type of
         cylinder ->
-            make_cylinder(Sections, TopX, TopZ, BotX, BotZ, Height, Modify);
+            make_cylinder(Sections, TopX, TopZ, BotX, BotZ, Height, Slice, Modify);
         tube ->
             make_tube(Sections, TopX, TopZ, BotX, BotZ, Height, Thickness, Modify);
         gear ->
@@ -115,11 +118,27 @@ make_cylinder(Arg, _St) ->
 %%% Cylinder
 %%%
 
-make_cylinder(Sections, TopX, TopZ, BotX, BotZ, Height, [Rot, Mov, Ground]) ->
+make_cylinder(Sections, TopX, TopZ, BotX, BotZ, Height, Slice, [Rot, Mov, Ground]) ->
     Vs0 = cylinder_verts(Sections, TopX, TopZ, BotX, BotZ, Height),
     Vs = wings_shapes:transform_obj(Rot,Mov,Ground, Vs0),
     Fs = cylinder_faces(Sections),
-    {new_shape,cylinder_type(cylinder),Fs,Vs}.
+    
+    case Slice > 1.0 of 
+        true ->
+            We0 = wings_we:build(Fs, Vs),
+            Edges = wings_edge:from_faces(Fs, We0),
+            VerticalEdge = lists:filter(fun({{_,Y1,_}, {_,Y2,_}}) -> Y1 /= Y2 end, Edges),
+            VerticalEdgesSimilar = wings_sel_cmd:similar(VerticalEdge),
+            NumSlices = trunc(Slice),
+            We1 = lists:foldl(fun(Edge, WeAcc)->
+                {WeNew, _,_} = wings_edge:cut(Edge, NumSlices, WeAcc),
+                WeNew
+            end, We0, VerticalEdgesSimilar),
+        
+            {new_shape, cylinder_type(cylinder), Fs, Vs, We1};
+        false ->
+            {new_shape, cylinder_type(cylinder), Fs, Vs}
+    end.
 
 cylinder_verts(Sections, TopX, TopZ, BotX, BotZ, Height) ->
     YAxis = Height/2,
