@@ -46,6 +46,8 @@ menu(X, Y, St) ->
 	     {?__(13,"Create a bridge or tunnel between two faces") ++
 	      ?__(40," or face regions"),[],
 	      ?__(43,"Create a bridge or tunnel from reference vertices")},[]},
+        {?__(44,"Pole"),pole_fun(),
+         {?__(45,"Create pole at selected faces")},[]},
 	    separator,
 	    {?__(14,"Bump"),bump,
 	     ?__(15,"Create bump of selected faces")},
@@ -142,6 +144,11 @@ hole_fun() ->
        (_, _Ns) -> ignore
     end.
 
+pole_fun() ->
+    fun(1, _Ns) -> {face,pole};
+       (_, _Ns) -> ignore
+    end.
+
 command({extrude, Dir}, St) ->
     ?SLOW(extrude(Dir, St));
 command({extract, Dir}, St) ->
@@ -168,6 +175,8 @@ command(bridge, St) ->
     {save_state,bridge(St)};
 command({bridge,reference}, St) ->
     bridge_ref(St);
+command(pole, St) ->
+    ?SLOW({save_state,pole(St)});
 command(smooth, St) ->
     ?SLOW({save_state,smooth(St)});
 command(subdiv, St) ->
@@ -1121,6 +1130,31 @@ multibridge_error() ->
 -spec bridge_error(any()) -> no_return().
 bridge_error(Error) ->
     wings_u:error_msg(Error).
+
+%%%
+%%% The Pole command.
+%%%
+
+pole(St) ->
+    wings_sel:map_update_sel(fun pole/2, St).
+
+pole(Faces, We) ->
+    % dissolve
+    We1 = wings_dissolve:faces(Faces, We),
+    NewFaces = wings_we:new_items_as_gbset(face, We, We1),
+    case gb_sets:is_empty(NewFaces) of
+        true ->
+            {We1,gb_sets:empty()};
+        false ->
+            % inset 0%
+            We2 = wings_extrude_face:faces(NewFaces, We1),
+            % collapse
+            {We3, _NewVs} = wings_collapse:collapse_faces(NewFaces, We2),
+            FinalFaces = wings_we:new_items_as_gbset(face, We2, We3),
+            {We3, FinalFaces}
+    end.
+    
+
 
 %%%
 %%% The Lift command.
