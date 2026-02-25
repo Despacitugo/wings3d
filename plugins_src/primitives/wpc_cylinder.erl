@@ -119,35 +119,36 @@ make_cylinder(Arg, _St) ->
 %%%
 
 make_cylinder(Sections, TopX, TopZ, BotX, BotZ, Height, Slice, [Rot, Mov, Ground]) ->
-    Vs0 = cylinder_verts(Sections, TopX, TopZ, BotX, BotZ, Height),
+    Vs0 = cylinder_verts_slice(Sections, TopX, TopZ, BotX, BotZ, Height, Slice),
     Vs = wings_shapes:transform_obj(Rot,Mov,Ground, Vs0),
     Fs = cylinder_faces(Sections),
-    
-    case Slice > 1.0 of 
-        true ->
-            We0 = wings_we:build(Fs, Vs),
-            Edges = wings_edge:from_faces(Fs, We0),
-            VerticalEdge = lists:filter(fun({{_,Y1,_}, {_,Y2,_}}) -> Y1 /= Y2 end, Edges),
-            VerticalEdgesSimilar = wings_sel_cmd:similar(VerticalEdge),
-            NumSlices = trunc(Slice),
-            We1 = lists:foldl(fun(Edge, WeAcc)->
-                {WeNew, _,_} = wings_edge:cut(Edge, NumSlices, WeAcc),
-                WeNew
-            end, We0, VerticalEdgesSimilar),
-        
-            {new_shape, cylinder_type(cylinder), Fs, Vs, We1};
-        false ->
-            {new_shape, cylinder_type(cylinder), Fs, Vs}
-    end.
+    {new_shape,cylinder_type(cylinder),Fs,Vs}.
 
-cylinder_verts(Sections, TopX, TopZ, BotX, BotZ, Height) ->
+cylinder_verts_slice(Sections, TopX, TopZ, BotX, BotZ, Height, Slice) ->
     YAxis = Height/2,
     Delta = pi()*2/Sections,
     Rings = lists:seq(0, Sections-1),
-    Top = ring_of_verts(Rings, Delta, YAxis, TopX, TopZ, 0.0),
-    Bottom = ring_of_verts(Rings, Delta, -YAxis, BotX, BotZ, 0.0),
-    Top ++ Bottom.
+    lists:flatten([
+        begin
+            T = I / Slice,
+            Y = YAxis - T*Height,
+            case I == Slice of
+                true -> ring_of_verts(Rings, Delta, Y, BotX, BotZ, 0.0);
+                false -> ring_of_verts(Rings, Delta, Y, TopX, TopZ, 0.0)
+            end
+        end || I <- lists:seq(0, Slice)
+    ]).
 
+%cylinder_faces_slice(Sections, Slice) ->
+
+%cylinder_verts(Sections, TopX, TopZ, BotX, BotZ, Height) ->
+%    YAxis = Height/2,
+%    Delta = pi()*2/Sections,
+%    Rings = lists:seq(0, Sections-1),
+%    Top = ring_of_verts(Rings, Delta, YAxis, TopX, TopZ, 0.0),
+%    Bottom = ring_of_verts(Rings, Delta, -YAxis, BotX, BotZ, 0.0),
+%    Top ++ Bottom.
+%
 cylinder_faces(N) ->
     Ns =lists:reverse(lists:seq(0, N-1)),
     Upper= Ns,
