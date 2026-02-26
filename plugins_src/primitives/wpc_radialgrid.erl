@@ -43,7 +43,7 @@ command(_, _) -> next.
 cylinder_dialog() ->
     [{label_column, [
 	{?__(1,"Sections"), {text,16,[{key,sections},{range,{3,infinity}}]}},
-    %{?__(2,"Slices"), {text,8,[{key,slices},{range,{1,infinity}}]}},
+    {?__(2,"Slices"), {text,8,[{key,slices},{range,{1,infinity}}]}},
 	{" ", separator},
 	{?__(3,"Radius"), {text,5.0,[{key,radius},{range,{0.0,infinity}}]}},
     {?__(4,"Thickness"), {text,0.2,[{key,thickness},{range,{0.0,infinity}}]}}]
@@ -54,43 +54,40 @@ make_cylinder(Arg, St) when is_atom(Arg) ->
     Qs = cylinder_dialog(),
     Label = ?__(1,"RadialGrid Options"),
     wings_dialog:dialog_preview({shape,radialgrid}, Arg, Label, Qs, St);
-make_cylinder(Arg, _St) ->
+make_cylinder(Arg, St) ->
     ArgDict = dict:from_list(Arg),
     Sections = dict:fetch(sections, ArgDict),
+    Slices = dict:fetch(slices, ArgDict),
     Radius = dict:fetch(radius, ArgDict),
     Thickness = dict:fetch(thickness, ArgDict),
     Modify = [{dict:fetch(rot_x, ArgDict), dict:fetch(rot_y, ArgDict), dict:fetch(rot_z, ArgDict)},
 	      {dict:fetch(mov_x, ArgDict), dict:fetch(mov_y, ArgDict), dict:fetch(mov_z, ArgDict)},
 	      dict:fetch(ground, ArgDict)],
-    make_cylinder(Sections, Radius, Radius, Radius, Radius, Thickness, Modify).
-
-
-%make_cylinder(Arg, St) when is_atom(Arg) ->
-%    Qs = cylinder_dialog(),
-%    Label = ?__(1,"Radial Grid Options"),
-%    wings_dialog:dialog_preview({shape,cylinder}, Arg, Label, Qs, St);
-%make_cylinder(Arg, _St) ->
-%    ArgDict = dict:from_list(Arg),
-%    Sections = dict:fetch(sections, ArgDict),
-%    %Slices = dict:fetch(slices, ArgDict),
-%    Radius = dict:fetch(radius, ArgDict),
-%    Thickness = dict:fetch(thickness, ArgDict),
-%    Modify = [{dict:fetch(rot_x, ArgDict), dict:fetch(rot_y, ArgDict), dict:fetch(rot_z, ArgDict)},
-%	      {dict:fetch(mov_x, ArgDict), dict:fetch(mov_y, ArgDict), dict:fetch(mov_z, ArgDict)},
-%	      dict:fetch(ground, ArgDict)],
-%    make_cylinder(Sections, Radius, Radius, Radius, Radius, Thickness, Modify).
-
-
+    make_cylinder(Sections, Slices, Radius, Radius, Radius, Radius, Thickness, Modify, St).
 
 %%%
 %%% Cylinder
 %%%
 
-make_cylinder(Sections, TopX, TopZ, BotX, BotZ, Height, [Rot, Mov, Ground]) ->
+make_cylinder(Sections, Slices, TopX, TopZ, BotX, BotZ, Height, [Rot, Mov, Ground], St) ->
     Vs0 = cylinder_verts(Sections, TopX, TopZ, BotX, BotZ, Height),
     Vs = wings_shapes:transform_obj(Rot,Mov,Ground, Vs0),
     Fs = cylinder_faces(Sections),
-    {new_shape,?__(2,"Radial Grid"),Fs,Vs}.
+    
+    % Pole
+    We0 = wings_we:build(Fs, Vs),
+    {We1, _NewFaces} = wings_face_cmd:pole(gb_sets:from_list([0, 1]), We0),
+
+    % Cut
+    %Edges = get_edges(Sections),
+    %{_V, We2} = wings_edge_cmd:cut_edges(gb_sets:from_list(Edges), Slices, We1),
+
+    {We2, _NewVertex} = wings_edge:cut((3 * (Sections + 1)), Slices, We1),
+    
+    % Connect
+    % TODO
+
+    wings_obj:new(?__(2,"Radial Grid"), We2, St).
 
 cylinder_verts(Sections, TopX, TopZ, BotX, BotZ, Height) ->
     YAxis = Height/2,
@@ -111,7 +108,9 @@ cylinder_faces(N) ->
 ring_of_verts(Rings, Delta, YAxis, XAxis, ZAxis, Offset) ->
     [{XAxis*cos(Offset+I*Delta), YAxis, ZAxis*sin(Offset+I*Delta)} || I <- Rings].
 
-
-
-
-    
+% gets the edges newly created by the pole command (commented for this commit since erlang will explode if you dare having something unused)
+%get_edges(Sections) -> 
+%    From = 3 * (Sections + 1),
+%    Count = Sections * 2 - 1,
+%    To = From + 2 * Count,
+%    lists:seq(From, To, 2).
