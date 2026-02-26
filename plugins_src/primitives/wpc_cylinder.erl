@@ -66,7 +66,7 @@ cylinder_dialog() ->
 	{?__(5,"Bottom X Radius"), {text,1.0,[{key,bottom_x},{range,{0.0,infinity}}]}},
 	{?__(6,"Bottom Z Radius"), {text,1.0,[{key,bottom_z},{range,{0.0,infinity}}]}},
     {" ", separator},
-    {?__(7,"Slice"), {text,1.0,[{key,slice},{range,{0.0,infinity}}]}}]   
+    {?__(7,"Slice"), {text,1.0,[{key,slice},{range,{1.0,infinity}}]}}]   
      },
      {hradio, [
 	{cylinder_type(cylinder),cylinder},
@@ -121,25 +121,33 @@ make_cylinder(Arg, _St) ->
 make_cylinder(Sections, TopX, TopZ, BotX, BotZ, Height, Slice, [Rot, Mov, Ground]) ->
     Vs0 = cylinder_verts_slice(Sections, TopX, TopZ, BotX, BotZ, Height, Slice),
     Vs = wings_shapes:transform_obj(Rot,Mov,Ground, Vs0),
-    Fs = cylinder_faces(Sections),
+    Fs = cylinder_faces_slice(Sections, Slice),
     {new_shape,cylinder_type(cylinder),Fs,Vs}.
 
 cylinder_verts_slice(Sections, TopX, TopZ, BotX, BotZ, Height, Slice) ->
+    Slice0 = round(Slice),
     YAxis = Height/2,
     Delta = pi()*2/Sections,
     Rings = lists:seq(0, Sections-1),
     lists:flatten([
         begin
-            T = I / Slice,
-            Y = YAxis - T*Height,
+            T = I / Slice0,
+            Y = YAxis - (T * Height),
             case I == Slice of
                 true -> ring_of_verts(Rings, Delta, Y, BotX, BotZ, 0.0);
                 false -> ring_of_verts(Rings, Delta, Y, TopX, TopZ, 0.0)
             end
-        end || I <- lists:seq(0, Slice)
+        end || I <- lists:seq(0, Slice0)
     ]).
 
-%cylinder_faces_slice(Sections, Slice) ->
+cylinder_faces_slice(Sections, NumSlice) ->
+    NumSlice0 = round(NumSlice),
+    Ns = lists:reverse(lists:seq(0, Sections-1)),
+    Upper = Ns,
+    Lower = lists:seq(Sections * NumSlice0, Sections * (NumSlice0 + 1) - 1),
+    Sides = [[I + Sections * S, (I + 1) rem Sections + Sections * S, (I + 1) rem Sections + Sections * (S + 1), I + Sections * (S + 1)]
+             || S <- lists:seq(0, NumSlice0 - 1), I <- Ns],
+    [Upper, Lower | Sides].
 
 %cylinder_verts(Sections, TopX, TopZ, BotX, BotZ, Height) ->
 %    YAxis = Height/2,
