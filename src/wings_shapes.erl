@@ -27,12 +27,12 @@ menu(Parent, Pos) ->
 menu() ->
     Opt = [option],
     Menu0 = [
+         {radialgrid, Opt},
 	     {sphere,Opt},
 	     {cone,Opt},
 	     separator,
          {polyhedron,Opt},
-         {octotoad, Opt},
-         {radialgrid, Opt},
+         {octotoad, Opt},         
 	     separator,
 	     {grid,Opt},
 	     separator,

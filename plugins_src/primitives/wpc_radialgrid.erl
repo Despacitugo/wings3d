@@ -19,17 +19,7 @@
 
 init() -> true.
 
-menu({shape}, []) ->
-    menu();
-menu({shape}, Menu) ->
-    menu()++Menu;
 menu(_, Menu) -> Menu.
-
-menu() ->
-    [{radialgrid(),radialgrid,?__(2,"Create a radial grid"),[option]}].
-
-radialgrid() ->
-    ?__(1,"Radial Grid").
 
 command({shape,{radialgrid, Ask}}, St) -> make_cylinder(Ask, St);
 command(_, _) -> next.
@@ -73,21 +63,15 @@ make_cylinder(Sections, Slices, TopX, TopZ, BotX, BotZ, Height, [Rot, Mov, Groun
     Vs0 = cylinder_verts(Sections, TopX, TopZ, BotX, BotZ, Height),
     Vs = wings_shapes:transform_obj(Rot,Mov,Ground, Vs0),
     Fs = cylinder_faces(Sections),
-    
     % Pole
     We0 = wings_we:build(Fs, Vs),
     {We1, _NewFaces} = wings_face_cmd:pole(gb_sets:from_list([0, 1]), We0),
-
     % Cut
-    %Edges = get_edges(Sections),
-    %{_V, We2} = wings_edge_cmd:cut_edges(gb_sets:from_list(Edges), Slices, We1),
-
-    {We2, _NewVertex} = wings_edge:cut((3 * (Sections + 1)), Slices, We1),
-    
+    Edges = gb_sets:from_list(get_edges(Sections)),
+    {We2, NewVs} = cut_edges(Edges, Slices, We1),
     % Connect
-    % TODO
-
-    wings_obj:new(?__(2,"Radial Grid"), We2, St).
+    We3 = wings_vertex_cmd:connect(gb_sets:from_list(NewVs), We2),
+    wings_obj:new(?__(2,"Radial Grid"), We3, St).
 
 cylinder_verts(Sections, TopX, TopZ, BotX, BotZ, Height) ->
     YAxis = Height/2,
@@ -108,9 +92,17 @@ cylinder_faces(N) ->
 ring_of_verts(Rings, Delta, YAxis, XAxis, ZAxis, Offset) ->
     [{XAxis*cos(Offset+I*Delta), YAxis, ZAxis*sin(Offset+I*Delta)} || I <- Rings].
 
-% gets the edges newly created by the pole command (commented for this commit since erlang will explode if you dare having something unused)
-%get_edges(Sections) -> 
-%    From = 3 * (Sections + 1),
-%    Count = Sections * 2 - 1,
-%    To = From + 2 * Count,
-%    lists:seq(From, To, 2).
+% gets the edges newly created by the pole command
+get_edges(Sections) -> 
+    From = 3 * (Sections + 1),
+    Count = Sections * 2 - 1,
+    To = From + 2 * Count,
+    lists:seq(From, To, 2).
+
+% function copied from wings_edge_cmd.erl and edited to get the new vertices
+cut_edges(Edges, N, We0) ->
+    gb_sets:fold(fun(Edge, {W0, AccVs}) ->
+			 {We, _} = wings_edge:cut(Edge, N, W0),
+			 NewVs = wings_we:new_items_as_ordset(vertex, W0, We),
+			 {We, AccVs ++ NewVs}
+		 end, {We0, []}, Edges).
