@@ -109,7 +109,7 @@ make_cylinder(Arg, _St) ->
         gear ->
             [Min|_] = lists:sort([TopX, TopZ, BotX, BotZ]),
             Thickness1 = min(Min, Thickness),
-            make_gear(Sections, TopX, TopZ, BotX, BotZ, Height, Thickness1, Modify);
+            make_gear(Sections, TopX, TopZ, BotX, BotZ, Height, Thickness1, Slice, Modify);
         pie ->
             make_pie(Sections, TopX, TopZ, BotX, BotZ, Height, Degrees, AngleOffset, Modify)
     end.
@@ -131,8 +131,7 @@ cylinder_verts_slice(Sections, TopX, TopZ, BotX, BotZ, Height, Slice) ->
     Rings = lists:seq(0, Sections-1),
     lists:flatten([
         begin
-            T = I / Slice0,
-            Y = YAxis - (T * Height),
+            Y = YAxis - ((Height / Slice) * I),
             case I == Slice of
                 true -> ring_of_verts(Rings, Delta, Y, BotX, BotZ, 0.0);
                 false -> ring_of_verts(Rings, Delta, Y, TopX, TopZ, 0.0)
@@ -168,42 +167,97 @@ cylinder_faces(N) ->
 %%% Gear
 %%%
 
-make_gear(Sections0, TopX, TopZ, BotX, BotZ, Height, ToothHeight, [Rot, Mov, Ground]) ->
+make_gear(Sections0, TopX, TopZ, BotX, BotZ, Height, ToothHeight, Slice, [Rot, Mov, Ground]) ->
     Sections = (Sections0 div 2)*2,
-    Vs0 = gear_verts(Sections, TopX, TopZ, BotX, BotZ, Height, ToothHeight),
+    Vs0 = gear_verts_slice(Sections, TopX, TopZ, BotX, BotZ, Height, ToothHeight, Slice),
     Vs = wings_shapes:transform_obj(Rot,Mov,Ground, Vs0),
-    Fs = gear_faces(Sections),
+    Fs = gear_faces_slice(Sections, Slice),
     {new_shape,cylinder_type(gear),Fs,Vs}.
 
-gear_verts(Sections, TopX, TopZ, BotX, BotZ, Height, ToothHeight) ->
+gear_verts_slice(Sections, TopX, TopZ, BotX, BotZ, Height, ToothHeight, Slice) ->
+    Slice0 = round(Slice),
     YAxis = Height/2,
     Delta = pi()*2/Sections,
     Rings = lists:seq(0, Sections-1),
-    TopOuter = ring_of_verts(Rings, Delta, YAxis, TopX, TopZ, 0.0),
-    BotOuter = ring_of_verts(Rings, Delta, -YAxis, BotX, BotZ, 0.0),
-    TopInner = ring_of_verts(Rings, Delta, YAxis, TopX-ToothHeight, TopZ-ToothHeight, 0.0),
-    BotInner = ring_of_verts(Rings, Delta, -YAxis, BotX-ToothHeight, BotZ-ToothHeight, 0.0),
-    OuterVerts = TopOuter ++ TopInner,
-    InnerVerts = BotOuter ++ BotInner,
-    OuterVerts ++ InnerVerts.
+    lists:flatten([
+        begin
+            Y = YAxis - ((Height / Slice) * I),
+            case I == Slice0 of
+                true ->
+                    Outer = ring_of_verts(Rings, Delta, Y, BotX, BotZ, 0.0),
+                    Inner = ring_of_verts(Rings, Delta, Y, BotX-ToothHeight, BotZ-ToothHeight, 0.0),
+                    Outer ++ Inner;
+                false ->
+                    Outer = ring_of_verts(Rings, Delta, Y, TopX, TopZ, 0.0),
+                    Inner = ring_of_verts(Rings, Delta, Y, TopX-ToothHeight, TopZ-ToothHeight, 0.0),
+                    Outer ++ Inner
+            end
+        end || I <- lists:seq(0, Slice0)
+    ]).
 
-gear_faces(Nres) ->
-    Offset = Nres*2,
-    A = lists:seq(Nres-1, 0, -1),
-    B = lists:seq(2*Nres-2, Nres, -1) ++ [2*Nres-1],
-    TopFace = zip_lists_2e(A,B),
-    BotFace = [Index+Offset || Index <- lists:reverse(TopFace)],
-    InnerFaces = [[I, I+1, I+Offset+1, I+Offset]
-		  || I <- lists:seq(0, Nres-2, 2)],
-    OuterFaces = [[I, I+1, I+Offset+1, I+Offset]
-		  || I <- lists:seq(Nres+1, 2*Nres-3, 2)]
-		  ++ [[2*Nres-1, Nres, 3*Nres, 4*Nres-1]], % the last face
-    SideFacesO = [[I, I+Nres, 3*Nres+I, 2*Nres+I]
-		  || I <- lists:seq(1, Nres-1, 2)],
-    SideFacesE = [[I+Nres, I, 2*Nres+I, 3*Nres+I]
-		  || I <- lists:seq(2, Nres-2, 2)]
-		  ++ [[Nres, 0, 2*Nres, 3*Nres]], % the last face
-    [TopFace]++[BotFace] ++ InnerFaces++OuterFaces ++ SideFacesO++SideFacesE.
+gear_faces_slice(Sections, NumSlice) ->
+    NumSlice0 = round(NumSlice),
+    N = Sections,
+    Stride = 2 * N,
+
+    A = lists:seq(N-1, 0, -1),
+    B = lists:seq(2*N-2, N, -1) ++ [2*N-1],
+    TopFace = zip_lists_2e(A, B),
+
+    BotBase = NumSlice0 * Stride,
+    BotFace = [Idx + BotBase || Idx <- lists:reverse(TopFace)],
+
+    OuterSides = [[I, I+1, I+Stride+1, I+Stride]
+                  || S <- lists:seq(0, NumSlice0-1),
+                     I0 <- lists:seq(0, N-2, 2),
+                     I <- [S*Stride + I0]],
+    InnerSides = [[I, I+1, I+Stride+1, I+Stride]
+                  || S <- lists:seq(0, NumSlice0-1),
+                     I0 <- lists:seq(N+1, 2*N-3, 2),
+                     I <- [S*Stride + I0]]
+                  ++ [[S*Stride+2*N-1, S*Stride+N, (S+1)*Stride+N, (S+1)*Stride+2*N-1]
+                      || S <- lists:seq(0, NumSlice0-1)],
+
+    SideFacesO = [[S*Stride+I, S*Stride+I+N, (S+1)*Stride+I+N, (S+1)*Stride+I]
+                  || S <- lists:seq(0, NumSlice0-1),
+                     I <- lists:seq(1, N-1, 2)],
+    SideFacesE = [[S*Stride+I+N, S*Stride+I, (S+1)*Stride+I, (S+1)*Stride+I+N]
+                  || S <- lists:seq(0, NumSlice0-1),
+                     I <- lists:seq(2, N-2, 2)]
+                  ++ [[S*Stride+N, S*Stride+0, (S+1)*Stride+0, (S+1)*Stride+N]
+                      || S <- lists:seq(0, NumSlice0-1)],
+
+    [TopFace] ++ [BotFace] ++ OuterSides ++ InnerSides ++ SideFacesO ++ SideFacesE.
+
+%gear_verts(Sections, TopX, TopZ, BotX, BotZ, Height, ToothHeight) ->
+%    YAxis = Height/2,
+%    Delta = pi()*2/Sections,
+%    Rings = lists:seq(0, Sections-1),
+%    TopOuter = ring_of_verts(Rings, Delta, YAxis, TopX, TopZ, 0.0),
+%    BotOuter = ring_of_verts(Rings, Delta, -YAxis, BotX, BotZ, 0.0),
+%    TopInner = ring_of_verts(Rings, Delta, YAxis, TopX-ToothHeight, TopZ-ToothHeight, 0.0),
+%    BotInner = ring_of_verts(Rings, Delta, -YAxis, BotX-ToothHeight, BotZ-ToothHeight, 0.0),
+%    OuterVerts = TopOuter ++ TopInner,
+%    InnerVerts = BotOuter ++ BotInner,
+%    OuterVerts ++ InnerVerts.
+%
+%gear_faces(Nres) ->
+%    Offset = Nres*2,
+%    A = lists:seq(Nres-1, 0, -1),
+%    B = lists:seq(2*Nres-2, Nres, -1) ++ [2*Nres-1],
+%    TopFace = zip_lists_2e(A,B),
+%    BotFace = [Index+Offset || Index <- lists:reverse(TopFace)],
+%    InnerFaces = [[I, I+1, I+Offset+1, I+Offset]
+%		  || I <- lists:seq(0, Nres-2, 2)],
+%    OuterFaces = [[I, I+1, I+Offset+1, I+Offset]
+%		  || I <- lists:seq(Nres+1, 2*Nres-3, 2)]
+%		  ++ [[2*Nres-1, Nres, 3*Nres, 4*Nres-1]], % the last face
+%    SideFacesO = [[I, I+Nres, 3*Nres+I, 2*Nres+I]
+%		  || I <- lists:seq(1, Nres-1, 2)],
+%    SideFacesE = [[I+Nres, I, 2*Nres+I, 3*Nres+I]
+%		  || I <- lists:seq(2, Nres-2, 2)]
+%		  ++ [[Nres, 0, 2*Nres, 3*Nres]], % the last face
+%    [TopFace]++[BotFace] ++ InnerFaces++OuterFaces ++ SideFacesO++SideFacesE.
 
 %%%
 %%% Tube
