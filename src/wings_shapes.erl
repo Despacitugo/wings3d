@@ -27,11 +27,12 @@ menu(Parent, Pos) ->
 menu() ->
     Opt = [option],
     Menu0 = [
+         {radialgrid, Opt},
 	     {sphere,Opt},
 	     {cone,Opt},
 	     separator,
          {polyhedron,Opt},
-         {octotoad, Opt},
+         {octotoad, Opt},         
 	     separator,
 	     {grid,Opt},
 	     separator,
@@ -56,6 +57,7 @@ prim_name(octahedron) ->   ?STR(prim_name,octahedron,"Octahedron");
 prim_name(octotoad) ->     ?STR(prim_name,octotoad,"Octotoad");
 prim_name(dodecahedron) -> ?STR(prim_name,dodecahedron,"Dodecahedron");
 prim_name(icosahedron) ->  ?STR(prim_name,icosahedron,"Icosahedron");
+prim_name(radialgrid) ->   ?STR(prim_name,radialgrid,"Radial Grid");
 prim_name(cone) ->         ?STR(prim_name,cone,"Cone");
 prim_name(sphere) ->       ?STR(prim_name,sphere,"Sphere");
 prim_name(grid) ->         ?STR(prim_name,grid,"Grid");
@@ -75,6 +77,8 @@ prim_help(dodecahedron) ->
     ?STR(prim_help,dodecahedron,"Create a dodecahedron");
 prim_help(icosahedron) ->
     ?STR(prim_help,icosahedron,"Create an icosahedron");
+prim_help(radialgrid) ->
+    ?STR(prim_help,radialgrid,"Create a radial grid");
 prim_help(cone) ->
     ?STR(prim_help,cone,"Create a cone");
 prim_help(sphere) ->

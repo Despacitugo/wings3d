@@ -16,7 +16,7 @@
 %% Commands.
 -export([menu/3,command/2]).
 -export([hardness/2,set_color/2]).
--export([loop_cut_partition/2]).
+-export([loop_cut_partition/2,cut_edges/3]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
