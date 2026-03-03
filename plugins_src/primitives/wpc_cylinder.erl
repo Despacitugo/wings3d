@@ -131,11 +131,11 @@ cylinder_verts_slice(Sections, TopX, TopZ, BotX, BotZ, Height, Slice) ->
     Rings = lists:seq(0, Sections-1),
     lists:flatten([
         begin
-            Y = YAxis - ((Height / Slice) * I),
-            case I == Slice of
-                true -> ring_of_verts(Rings, Delta, Y, BotX, BotZ, 0.0);
-                false -> ring_of_verts(Rings, Delta, Y, TopX, TopZ, 0.0)
-            end
+            T = I / Slice0,
+            Y = YAxis - (T * Height),
+            Rx = TopX + T * (BotX - TopX),
+            Rz = TopZ + T * (BotZ - TopZ),
+            ring_of_verts(Rings, Delta, Y, Rx, Rz, 0.0)
         end || I <- lists:seq(0, Slice0)
     ]).
 
@@ -181,17 +181,13 @@ gear_verts_slice(Sections, TopX, TopZ, BotX, BotZ, Height, ToothHeight, Slice) -
     Rings = lists:seq(0, Sections-1),
     lists:flatten([
         begin
-            Y = YAxis - ((Height / Slice) * I),
-            case I == Slice0 of
-                true ->
-                    Outer = ring_of_verts(Rings, Delta, Y, BotX, BotZ, 0.0),
-                    Inner = ring_of_verts(Rings, Delta, Y, BotX-ToothHeight, BotZ-ToothHeight, 0.0),
-                    Outer ++ Inner;
-                false ->
-                    Outer = ring_of_verts(Rings, Delta, Y, TopX, TopZ, 0.0),
-                    Inner = ring_of_verts(Rings, Delta, Y, TopX-ToothHeight, TopZ-ToothHeight, 0.0),
-                    Outer ++ Inner
-            end
+            T = I / Slice0,
+            Y = YAxis - (T * Height),
+            Rx = TopX + T * (BotX - TopX),
+            Rz = TopZ + T * (BotZ - TopZ),
+            Outer = ring_of_verts(Rings, Delta, Y, Rx, Rz, 0.0),
+            Inner = ring_of_verts(Rings, Delta, Y, Rx-ToothHeight, Rz-ToothHeight, 0.0),
+            Outer ++ Inner
         end || I <- lists:seq(0, Slice0)
     ]).
 
@@ -276,17 +272,13 @@ tube_verts_slice(Sections, TopX, TopZ, BotX, BotZ, Height, Thickness, Slice) ->
     Rings = lists:seq(0, Sections-1),
     lists:flatten([
         begin
-            Y = YAxis - ((Height / Slice) * I),
-            case I == Slice0 of
-                true ->
-                    Outer = ring_of_verts(Rings, Delta, Y, BotX, BotZ, 0.0),
-                    Inner = ring_of_verts(Rings, Delta, Y, BotX-Thickness, BotZ-Thickness, 0.0),
-                    Outer ++ Inner;
-                false ->
-                    Outer = ring_of_verts(Rings, Delta, Y, TopX, TopZ, 0.0),
-                    Inner = ring_of_verts(Rings, Delta, Y, TopX-Thickness, TopZ-Thickness, 0.0),
-                    Outer ++ Inner
-            end
+            T = I / Slice0,
+            Y = YAxis - (T * Height),
+            Rx = TopX + T * (BotX - TopX),
+            Rz = TopZ + T * (BotZ - TopZ),
+            Outer = ring_of_verts(Rings, Delta, Y, Rx, Rz, 0.0),
+            Inner = ring_of_verts(Rings, Delta, Y, Rx-Thickness, Rz-Thickness, 0.0),
+            Outer ++ Inner
         end || I <- lists:seq(0, Slice0)
     ]).
 
@@ -369,15 +361,12 @@ pie_verts_slice(Sections, TopX, TopZ, BotX, BotZ, Height, Degrees, AngleOffset, 
     Rings = lists:seq(0, Sections),
     lists:flatten([
         begin
-            Y = YAxis - ((Height / Slice) * I),
-            case I == Slice0 of
-                true ->
-                    Ring = ring_of_verts(Rings, Delta, Y, BotX, BotZ, Offset),
-                    Ring ++ [{0.0, Y, 0.0}];
-                false ->
-                    Ring = ring_of_verts(Rings, Delta, Y, TopX, TopZ, Offset),
-                    Ring ++ [{0.0, Y, 0.0}]
-            end
+            T = I / Slice0,
+            Y = YAxis - (T * Height),
+            Rx = TopX + T * (BotX - TopX),
+            Rz = TopZ + T * (BotZ - TopZ),
+            Ring = ring_of_verts(Rings, Delta, Y, Rx, Rz, Offset),
+            Ring ++ [{0.0, Y, 0.0}]
         end || I <- lists:seq(0, Slice0)
     ]).
 
@@ -390,7 +379,7 @@ pie_faces_slice(Sections, NumSlice) ->
     TopFace = lists:reverse(lists:seq(0, N-1)) ++ [Center],
 
     BotBase = NumSlice0 * Offset,
-    BotFace = [Center+BotBase | lists:seq(0+BotBase, N-1+BotBase)],
+    BotFace = [Center+BotBase | lists:seq(BotBase, N-1+BotBase)],
 
     ArcFaces = [[I, I+1, I+Offset+1, I+Offset]
                 || S <- lists:seq(0, NumSlice0-1),
