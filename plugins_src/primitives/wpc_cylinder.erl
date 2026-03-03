@@ -119,10 +119,34 @@ make_cylinder(Arg, _St) ->
 %%%
 
 make_cylinder(Sections, TopX, TopZ, BotX, BotZ, Height, Slice, [Rot, Mov, Ground]) ->
-    Vs0 = cylinder_verts_slice(Sections, TopX, TopZ, BotX, BotZ, Height, Slice),
-    Vs = wings_shapes:transform_obj(Rot,Mov,Ground, Vs0),
-    Fs = cylinder_faces_slice(Sections, Slice),
+    case Slice of
+        % No slices
+        1.0 -> 
+            Vs0 = cylinder_verts(Sections, TopX, TopZ, BotX, BotZ, Height),
+            Vs = wings_shapes:transform_obj(Rot,Mov,Ground, Vs0),
+            Fs = cylinder_faces(Sections);
+        % Needs slicing
+        _ -> 
+            Vs0 = cylinder_verts_slice(Sections, TopX, TopZ, BotX, BotZ, Height, Slice),
+            Vs = wings_shapes:transform_obj(Rot,Mov,Ground, Vs0),
+            Fs = cylinder_faces_slice(Sections, Slice)
+        end,
     {new_shape,cylinder_type(cylinder),Fs,Vs}.
+
+cylinder_verts(Sections, TopX, TopZ, BotX, BotZ, Height) ->
+    YAxis = Height/2,
+    Delta = pi()*2/Sections,
+    Rings = lists:seq(0, Sections-1),
+    Top = ring_of_verts(Rings, Delta, YAxis, TopX, TopZ, 0.0),
+    Bottom = ring_of_verts(Rings, Delta, -YAxis, BotX, BotZ, 0.0),
+    Top ++ Bottom.
+
+cylinder_faces(N) ->
+    Ns =lists:reverse(lists:seq(0, N-1)),
+    Upper= Ns,
+    Lower= lists:seq(N, N+N-1),
+    Sides= [[I, (I+1) rem N, N + (I+1) rem N, N + I] || I <- Ns],
+    [Upper, Lower | Sides].
 
 cylinder_verts_slice(Sections, TopX, TopZ, BotX, BotZ, Height, Slice) ->
     Slice0 = round(Slice),
@@ -148,31 +172,54 @@ cylinder_faces_slice(Sections, NumSlice) ->
              || S <- lists:seq(0, NumSlice0 - 1), I <- Ns],
     [Upper, Lower | Sides].
 
-%cylinder_verts(Sections, TopX, TopZ, BotX, BotZ, Height) ->
-%    YAxis = Height/2,
-%    Delta = pi()*2/Sections,
-%    Rings = lists:seq(0, Sections-1),
-%    Top = ring_of_verts(Rings, Delta, YAxis, TopX, TopZ, 0.0),
-%    Bottom = ring_of_verts(Rings, Delta, -YAxis, BotX, BotZ, 0.0),
-%    Top ++ Bottom.
-%
-%cylinder_faces(N) ->
-%    Ns =lists:reverse(lists:seq(0, N-1)),
-%    Upper= Ns,
-%    Lower= lists:seq(N, N+N-1),
-%    Sides= [[I, (I+1) rem N, N + (I+1) rem N, N + I] || I <- Ns],
-%    [Upper, Lower | Sides].
-
 %%%
 %%% Gear
 %%%
 
 make_gear(Sections0, TopX, TopZ, BotX, BotZ, Height, ToothHeight, Slice, [Rot, Mov, Ground]) ->
-    Sections = (Sections0 div 2)*2,
-    Vs0 = gear_verts_slice(Sections, TopX, TopZ, BotX, BotZ, Height, ToothHeight, Slice),
-    Vs = wings_shapes:transform_obj(Rot,Mov,Ground, Vs0),
-    Fs = gear_faces_slice(Sections, Slice),
+    case Slice of
+        % No slices
+        1.0 -> 
+            Vs0 = gear_verts(Sections0, TopX, TopZ, BotX, BotZ, Height, ToothHeight),
+            Vs = wings_shapes:transform_obj(Rot,Mov,Ground, Vs0),
+            Fs = gear_faces(Sections0);
+        % Needs slicing
+        _ -> 
+            Vs0 = gear_verts_slice(Sections0, TopX, TopZ, BotX, BotZ, Height, ToothHeight, Slice),
+            Vs = wings_shapes:transform_obj(Rot,Mov,Ground, Vs0),
+            Fs = gear_faces_slice(Sections0, Slice)
+        end,
     {new_shape,cylinder_type(gear),Fs,Vs}.
+
+gear_verts(Sections, TopX, TopZ, BotX, BotZ, Height, ToothHeight) ->
+    YAxis = Height/2,
+    Delta = pi()*2/Sections,
+    Rings = lists:seq(0, Sections-1),
+    TopOuter = ring_of_verts(Rings, Delta, YAxis, TopX, TopZ, 0.0),
+    BotOuter = ring_of_verts(Rings, Delta, -YAxis, BotX, BotZ, 0.0),
+    TopInner = ring_of_verts(Rings, Delta, YAxis, TopX-ToothHeight, TopZ-ToothHeight, 0.0),
+    BotInner = ring_of_verts(Rings, Delta, -YAxis, BotX-ToothHeight, BotZ-ToothHeight, 0.0),
+    OuterVerts = TopOuter ++ TopInner,
+    InnerVerts = BotOuter ++ BotInner,
+    OuterVerts ++ InnerVerts.
+
+gear_faces(Nres) ->
+    Offset = Nres*2,
+    A = lists:seq(Nres-1, 0, -1),
+    B = lists:seq(2*Nres-2, Nres, -1) ++ [2*Nres-1],
+    TopFace = zip_lists_2e(A,B),
+    BotFace = [Index+Offset || Index <- lists:reverse(TopFace)],
+    InnerFaces = [[I, I+1, I+Offset+1, I+Offset]
+		  || I <- lists:seq(0, Nres-2, 2)],
+    OuterFaces = [[I, I+1, I+Offset+1, I+Offset]
+		  || I <- lists:seq(Nres+1, 2*Nres-3, 2)]
+		  ++ [[2*Nres-1, Nres, 3*Nres, 4*Nres-1]], % the last face
+    SideFacesO = [[I, I+Nres, 3*Nres+I, 2*Nres+I]
+		  || I <- lists:seq(1, Nres-1, 2)],
+    SideFacesE = [[I+Nres, I, 2*Nres+I, 3*Nres+I]
+		  || I <- lists:seq(2, Nres-2, 2)]
+		  ++ [[Nres, 0, 2*Nres, 3*Nres]], % the last face
+    [TopFace]++[BotFace] ++ InnerFaces++OuterFaces ++ SideFacesO++SideFacesE.
 
 gear_verts_slice(Sections, TopX, TopZ, BotX, BotZ, Height, ToothHeight, Slice) ->
     Slice0 = round(Slice),
@@ -225,45 +272,50 @@ gear_faces_slice(Sections, NumSlice) ->
 
     [TopFace] ++ [BotFace] ++ OuterSides ++ InnerSides ++ SideFacesO ++ SideFacesE.
 
-%gear_verts(Sections, TopX, TopZ, BotX, BotZ, Height, ToothHeight) ->
-%    YAxis = Height/2,
-%    Delta = pi()*2/Sections,
-%    Rings = lists:seq(0, Sections-1),
-%    TopOuter = ring_of_verts(Rings, Delta, YAxis, TopX, TopZ, 0.0),
-%    BotOuter = ring_of_verts(Rings, Delta, -YAxis, BotX, BotZ, 0.0),
-%    TopInner = ring_of_verts(Rings, Delta, YAxis, TopX-ToothHeight, TopZ-ToothHeight, 0.0),
-%    BotInner = ring_of_verts(Rings, Delta, -YAxis, BotX-ToothHeight, BotZ-ToothHeight, 0.0),
-%    OuterVerts = TopOuter ++ TopInner,
-%    InnerVerts = BotOuter ++ BotInner,
-%    OuterVerts ++ InnerVerts.
-%
-%gear_faces(Nres) ->
-%    Offset = Nres*2,
-%    A = lists:seq(Nres-1, 0, -1),
-%    B = lists:seq(2*Nres-2, Nres, -1) ++ [2*Nres-1],
-%    TopFace = zip_lists_2e(A,B),
-%    BotFace = [Index+Offset || Index <- lists:reverse(TopFace)],
-%    InnerFaces = [[I, I+1, I+Offset+1, I+Offset]
-%		  || I <- lists:seq(0, Nres-2, 2)],
-%    OuterFaces = [[I, I+1, I+Offset+1, I+Offset]
-%		  || I <- lists:seq(Nres+1, 2*Nres-3, 2)]
-%		  ++ [[2*Nres-1, Nres, 3*Nres, 4*Nres-1]], % the last face
-%    SideFacesO = [[I, I+Nres, 3*Nres+I, 2*Nres+I]
-%		  || I <- lists:seq(1, Nres-1, 2)],
-%    SideFacesE = [[I+Nres, I, 2*Nres+I, 3*Nres+I]
-%		  || I <- lists:seq(2, Nres-2, 2)]
-%		  ++ [[Nres, 0, 2*Nres, 3*Nres]], % the last face
-%    [TopFace]++[BotFace] ++ InnerFaces++OuterFaces ++ SideFacesO++SideFacesE.
-
 %%%
 %%% Tube
 %%%
 
 make_tube(Sections, TopX, TopZ, BotX, BotZ, Height, Thickness, Slice, [Rot, Mov, Ground]) ->
-    Vs0 = tube_verts_slice(Sections, TopX, TopZ, BotX, BotZ, Height, Thickness, Slice),
-    Vs = wings_shapes:transform_obj(Rot,Mov,Ground, Vs0),
-    Fs = tube_faces_slice(Sections, Slice),
+    case Slice of
+        % No slices
+        1.0 -> 
+            Vs0 = tube_verts(Sections, TopX, TopZ, BotX, BotZ, Height, Thickness),
+            Vs = wings_shapes:transform_obj(Rot,Mov,Ground, Vs0),
+            Fs = tube_faces(Sections);
+        % Needs slicing
+        _ -> 
+            Vs0 = tube_verts_slice(Sections, TopX, TopZ, BotX, BotZ, Height, Thickness, Slice),
+            Vs = wings_shapes:transform_obj(Rot,Mov,Ground, Vs0),
+            Fs = tube_faces_slice(Sections, Slice)
+        end,
     {new_shape,cylinder_type(tube),Fs,Vs}.
+
+tube_verts(Sections, TopX, TopZ, BotX, BotZ, Height, Thickness) ->
+    YAxis = Height/2,
+    Delta = pi()*2/Sections,
+    Rings = lists:seq(0, Sections-1),
+    TopOuter = ring_of_verts(Rings, Delta, YAxis, TopX, TopZ, 0.0),
+    BotOuter = ring_of_verts(Rings, Delta, -YAxis, BotX, BotZ, 0.0),
+    TopInner = ring_of_verts(Rings, Delta, YAxis, TopX-Thickness, TopZ-Thickness, 0.0),
+    BotInner = ring_of_verts(Rings, Delta, -YAxis, BotX-Thickness, BotZ-Thickness, 0.0),
+    OuterVerts = TopOuter ++ BotOuter,
+    InnerVerts = TopInner ++ BotInner,
+    OuterVerts ++ InnerVerts.
+
+tube_faces(Nres) ->
+    Offset = 2*Nres,
+    TopFaces =
+	[[I, I+1, I+Nres+1, I+Nres] || I <- lists:seq(0, Nres-2)] ++
+	[[Nres-1, 0, Nres, 2*Nres-1] ],        % the last face
+    BotFaces = [[D+Offset,C+Offset,B+Offset,A+Offset] || [A,B,C,D] <- TopFaces],
+    InnerFaces =
+	[[I, I-1, I+Offset-1, I+Offset] || I <- lists:seq(1, Nres-1)] ++
+	[[0, Nres-1, 3*Nres-1, 2*Nres] ],      % the last face
+    OuterFaces =
+	[[I, I+1, I+Offset+1, I+Offset] || I <- lists:seq(Nres, 2*Nres-2)] ++
+	[[2*Nres-1, Nres, 3*Nres, 4*Nres-1] ], % the last face
+    TopFaces ++ BotFaces ++ InnerFaces ++ OuterFaces.
 
 tube_verts_slice(Sections, TopX, TopZ, BotX, BotZ, Height, Thickness, Slice) ->
     Slice0 = round(Slice),
@@ -307,32 +359,6 @@ tube_faces_slice(Nres, NumSlice) ->
                       || S <- lists:seq(0, NumSlice0-1)],
     TopFaces ++ BotFaces ++ OuterFaces ++ InnerFaces.
 
-%tube_verts(Sections, TopX, TopZ, BotX, BotZ, Height, Thickness) ->
-%    YAxis = Height/2,
-%    Delta = pi()*2/Sections,
-%    Rings = lists:seq(0, Sections-1),
-%    TopOuter = ring_of_verts(Rings, Delta, YAxis, TopX, TopZ, 0.0),
-%    BotOuter = ring_of_verts(Rings, Delta, -YAxis, BotX, BotZ, 0.0),
-%    TopInner = ring_of_verts(Rings, Delta, YAxis, TopX-Thickness, TopZ-Thickness, 0.0),
-%    BotInner = ring_of_verts(Rings, Delta, -YAxis, BotX-Thickness, BotZ-Thickness, 0.0),
-%    OuterVerts = TopOuter ++ BotOuter,
-%    InnerVerts = TopInner ++ BotInner,
-%    OuterVerts ++ InnerVerts.
-
-%tube_faces(Nres) ->
-%    Offset = 2*Nres,
-%    TopFaces =
-%	[[I, I+1, I+Nres+1, I+Nres] || I <- lists:seq(0, Nres-2)] ++
-%	[[Nres-1, 0, Nres, 2*Nres-1] ],        % the last face
-%    BotFaces = [[D+Offset,C+Offset,B+Offset,A+Offset] || [A,B,C,D] <- TopFaces],
-%    InnerFaces =
-%	[[I, I-1, I+Offset-1, I+Offset] || I <- lists:seq(1, Nres-1)] ++
-%	[[0, Nres-1, 3*Nres-1, 2*Nres] ],      % the last face
-%    OuterFaces =
-%	[[I, I+1, I+Offset+1, I+Offset] || I <- lists:seq(Nres, 2*Nres-2)] ++
-%	[[2*Nres-1, Nres, 3*Nres, 4*Nres-1] ], % the last face
-%    TopFaces ++ BotFaces ++ InnerFaces ++ OuterFaces.
-
 ring_of_verts(Rings, Delta, YAxis, XAxis, ZAxis, Offset) ->
     [{XAxis*cos(Offset+I*Delta), YAxis, ZAxis*sin(Offset+I*Delta)} || I <- Rings].
 
@@ -347,10 +373,34 @@ zip_lists_2e(A, B) ->	      % Both lists must be equal in length
 %%%
 
 make_pie(Sections, TopX, TopZ, BotX, BotZ, Height, Degrees, AngleOffset, Slice, [Rot, Mov, Ground]) ->
-    Vs0 = pie_verts_slice(Sections, TopX, TopZ, BotX, BotZ, Height, Degrees, AngleOffset, Slice),
-    Vs = wings_shapes:transform_obj(Rot,Mov,Ground, Vs0),
-    Fs = pie_faces_slice(Sections, Slice),
+    case Slice of
+        % No slices
+        1.0 -> 
+            Vs0 = pie_verts(Sections, TopX, TopZ, BotX, BotZ, Height, Degrees, AngleOffset),
+            Vs = wings_shapes:transform_obj(Rot,Mov,Ground, Vs0),
+            Fs = cylinder_faces(trunc(length(Vs0)/2));
+        % Needs slicing
+        _ -> 
+            Vs0 = pie_verts_slice(Sections, TopX, TopZ, BotX, BotZ, Height, Degrees, AngleOffset, Slice),
+            Vs = wings_shapes:transform_obj(Rot,Mov,Ground, Vs0),
+            Fs = pie_faces_slice(Sections, Slice)
+        end,
     {new_shape,cylinder_type(pie),Fs,Vs}.
+
+pie_verts(Sections, TopX, TopZ, BotX, BotZ, Height, Degrees, AngleOffset) ->
+    YAxis = Height/2,
+    DtoRad = math:pi()/180.0,
+    Offset = AngleOffset*DtoRad,
+    Delta = (Degrees*DtoRad)/Sections,
+    Rings = lists:seq(0, Sections),
+    [Top0|_] = Top = ring_of_verts(Rings, Delta, YAxis, TopX, TopZ, Offset),
+    [Bottom0|_] = Bottom = ring_of_verts(Rings, Delta, -YAxis, BotX, BotZ, Offset),
+    {TopExt,BottomExt} =
+        case Degrees of
+            360.0 -> {[Top0,{0.0,YAxis,0.0}],[Bottom0,{0.0,-YAxis,0.0}]};
+            _ -> {[{0.0,YAxis,0.0}],[{0.0,-YAxis,0.0}]}
+        end,
+    Top ++ TopExt ++ Bottom ++ BottomExt.
 
 pie_verts_slice(Sections, TopX, TopZ, BotX, BotZ, Height, Degrees, AngleOffset, Slice) ->
     Slice0 = round(Slice),
@@ -394,18 +444,3 @@ pie_faces_slice(Sections, NumSlice) ->
                  || S <- lists:seq(0, NumSlice0-1)],
 
     [TopFace, BotFace] ++ ArcFaces ++ LeftWall ++ RightWall.
-
-%pie_verts(Sections, TopX, TopZ, BotX, BotZ, Height, Degrees, AngleOffset) ->
-%    YAxis = Height/2,
-%    DtoRad = math:pi()/180.0,
-%    Offset = AngleOffset*DtoRad,
-%    Delta = (Degrees*DtoRad)/Sections,
-%    Rings = lists:seq(0, Sections),
-%    [Top0|_] = Top = ring_of_verts(Rings, Delta, YAxis, TopX, TopZ, Offset),
-%    [Bottom0|_] = Bottom = ring_of_verts(Rings, Delta, -YAxis, BotX, BotZ, Offset),
-%    {TopExt,BottomExt} =
-%        case Degrees of
-%            360.0 -> {[Top0,{0.0,YAxis,0.0}],[Bottom0,{0.0,-YAxis,0.0}]};
-%            _ -> {[{0.0,YAxis,0.0}],[{0.0,-YAxis,0.0}]}
-%        end,
-%    Top ++ TopExt ++ Bottom ++ BottomExt.
