@@ -134,8 +134,8 @@ thread_verts(Type, Sections, TopRadius, BotRadius, CrestH, Pitch, Rows, Height) 
     RingTop ++ Body.
 
 thread_faces(helicoid=Type, N, Rows) ->
-    R0 = (Rows-1)*2,
-    R = (Rows*2-1)*N,
+    R0 = Rows*2-1,
+    R = Rows*2*N,
     Top = lists:seq(0,N-1),
     Bottom = lists:seq(R+N-1,R, -1),
     Sides = build_sides(Type,R0,N),
