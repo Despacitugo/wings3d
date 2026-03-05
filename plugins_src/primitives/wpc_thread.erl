@@ -96,8 +96,8 @@ make_thread(Arg0, _St) ->
               {maps:get(mov_x, Arg), maps:get(mov_y, Arg), maps:get(mov_z, Arg)},
               maps:get(ground, Arg)],
 
-    Height = Pitch*(Occurrences+0.5),
-    Rows = Occurrences+1,
+    Height = Pitch*Occurrences,
+    Rows = Occurrences,
     make_thread(Type, Dir, Sections, Height, TopRadius, BotRadius, CrestH, Pitch, Rows, Modify).
 
 %%%
@@ -113,19 +113,25 @@ make_thread(Type, Dir, Sections, Height, TopRadius, BotRadius, CrestH, Pitch, Ro
 
 thread_verts(Type, Sections, TopRadius, BotRadius, CrestH, Pitch, Rows, Height) ->
     RadRange = BotRadius-TopRadius,
-    RadInc = RadRange/(Rows-1),
+    RadInc = case Rows of
+                 1 -> 0.0;
+                 _ -> RadRange/(Rows-1)
+             end,
     Y = Height/2.0,
     PitchInc = Pitch/2.0,
     SubPitchInc = Pitch/Sections,
     Delta = pi()*2/Sections,
     Rings = lists:seq(Sections-1,0,-1),
-    lists:foldr(fun(Idx, Acc) ->
+    %% Initial trough ring at the top
+    RingTop = ring_of_verts(Type, Rings, SubPitchInc, Delta, Y, TopRadius),
+    Body = lists:foldr(fun(Idx, Acc) ->
                     YInc = Idx*Pitch,
                     RInc = Idx*RadInc,
-                    Ring0 = ring_of_verts(Type, Rings, SubPitchInc, Delta, Y-YInc, TopRadius+RInc+CrestH),
-                    Ring1 = ring_of_verts(Type, Rings, SubPitchInc, Delta, Y-(YInc+PitchInc), TopRadius+RInc),
+                    Ring0 = ring_of_verts(Type, Rings, SubPitchInc, Delta, Y-(YInc+PitchInc), TopRadius+RInc+CrestH),
+                    Ring1 = ring_of_verts(Type, Rings, SubPitchInc, Delta, Y-(YInc+Pitch), TopRadius+RInc+RadInc),
                     Ring0++Ring1++Acc
-                end, [], lists:seq(0,Rows-1)).
+                end, [], lists:seq(0,Rows-1)),
+    RingTop ++ Body.
 
 thread_faces(helicoid=Type, N, Rows) ->
     R0 = (Rows-1)*2,
@@ -135,8 +141,8 @@ thread_faces(helicoid=Type, N, Rows) ->
     Sides = build_sides(Type,R0,N),
     [Top, Bottom | Sides];
 thread_faces(non_helicoid=Type, N, Rows) ->
-    R0 = (Rows-1)*2,
-    R = (Rows*2-1)*N,
+    R0 = Rows*2-1,
+    R = Rows*2*N,
     Top = lists:reverse(lists:seq(N-1,0,-1)),
     Bottom = lists:seq(R+N-1,R, -1),
     Sides = build_sides(Type,R0,N),
