@@ -86,7 +86,7 @@ process_circ_cmd(Plane, St0) ->
     IsCircle = wings_sel:dfold(MF, RF, false, St0),
     Setup = case IsCircle of
                 true -> fun circle_setup/2;
-                false -> circ_sel_error_4()
+                false -> fun arc_setup/2
             end,
     case Plane of
         {'ASK',Ask} ->
@@ -274,6 +274,116 @@ arc_center_setup_1(VData, Plane, Center, Vtab) ->
         Data = {Angle, CenterPoint, Axis, SPos, DegVertList, NumVs},
         {Vlist++VlistAcc,[Data|DataAcc]}
     end, {[],[]}, VData).
+
+arc_setup(Plane, St0) ->
+    Flatten = wings_pref:get_value(circularise_flatten, true),
+    State = {Flatten,normal,none},
+    F = fun(Es, We, TentVec0) ->
+                VsList = wings_edge_loop:edge_links(Es, We),
+                {TentVec,Tv} = arc_setup(State, Plane, VsList, We, TentVec0),
+                {We#we{temp=Tv},TentVec}
+        end,
+    {St,_} = wings_sel:mapfold(F, tent_vec, St0),
+    Flags = [{mode,{arc_modes(),State}},{initial,[0.0,0.0,1.0]}],
+    Units = [angle,skip,percent],
+    DF = fun(_, #we{temp=Tv}) -> Tv end,
+    wings_drag:fold(DF, Units, Flags, St).
+
+arc_setup(State, Plane, VsData, We, TentVec) ->
+    arc_setup(State, Plane, VsData, We, TentVec, []).
+
+arc_setup(State, Plane0, [VsList|Loops], #we{vp=Vtab}=We, TentVec0, Acc0) ->
+    {Vs0,Edges} = arc_vs(VsList, [], []),
+    CwNorm = wings_face:face_normal_cw(Vs0, Vtab),
+    case e3d_vec:is_zero(CwNorm) of
+        true when Plane0 =:= find_plane -> %% LMB
+            SurfaceNorm = check_plane(Vs0, We),
+            {[NewVsList], TempVtab} = tent_arc(Edges, Vs0, SurfaceNorm, We),
+            {Vs,_} = arc_vs(NewVsList, [], []),
+            CwNorm1 = wings_face:face_normal_ccw(Vs, TempVtab),
+            {Vlist,DegVertList} = make_degree_vert_list(Vs, TempVtab, 0, [], []),
+            TentVec = TentVec0,
+            Norm = CwNorm1;
+        true -> %% RMB
+            TentVec = case TentVec0 of
+                tent_vec ->
+                    SurfaceNorm = check_plane(Vs0, We),
+                    establish_tent_vec(Plane0, Vs0, SurfaceNorm, We);
+                _ -> TentVec0
+            end,
+            {[NewVsList], TempVtab} = tent_arc(Edges, Vs0, TentVec, We),
+            {Vs,_} = arc_vs(NewVsList, [], []),
+            CwNorm1 = wings_face:face_normal_ccw(Vs, TempVtab),
+            {Vlist,DegVertList} = make_degree_vert_list(Vs, TempVtab, 0, [], []),
+            Norm = CwNorm1;
+        false when Plane0 =:= find_plane -> %% LMB
+            Vs = Vs0,
+            {Vlist,DegVertList} = make_degree_vert_list(Vs0, Vtab, 0, [], []),
+            TentVec = TentVec0,
+            Norm = e3d_vec:neg(CwNorm);
+        false -> %% RMB
+            Plane = check_for_user_plane(Plane0, CwNorm),
+            Vs = check_vertex_order(Vs0, Plane, CwNorm),
+            {Vlist,DegVertList} = make_degree_vert_list(Vs, Vtab, 0, [], []),
+            [V0|_] = Vs,
+            V1 = array:get(V0, Vtab),
+            V2 = array:get(lists:last(Vs), Vtab),
+            Vec = e3d_vec:norm_sub(V1, V2),
+            Cr1 = e3d_vec:norm(e3d_vec:cross(Vec, Plane)),
+            Cr2 = e3d_vec:neg(Cr1),
+            TentVec = TentVec0,
+            Norm = if Cr1 > Cr2 -> e3d_vec:neg(Plane);
+                      true -> Plane
+                   end
+    end,
+    NumVs = length(DegVertList) + 1,
+    [StartVs|_] = Vs,
+    EndVs = lists:last(Vs),
+    SPos = array:get(StartVs, Vtab),
+    EPos = array:get(EndVs, Vtab),
+    Hinge = e3d_vec:average(SPos, EPos),
+    Chord = e3d_vec:sub(Hinge, SPos),
+    Cross = e3d_vec:norm(e3d_vec:cross(Norm, Chord)),
+    Opp = e3d_vec:len(Chord),
+    Data = {{CwNorm, Cross, Opp, Norm, SPos, Hinge, NumVs}, DegVertList},
+    Acc = [{Vlist, make_arc_fun(Data, State)}|Acc0],
+    arc_setup(State, Plane0, Loops, We, TentVec, Acc);
+arc_setup(_, _, [], _, TentVec, Acc) ->
+    {TentVec,wings_drag:compose(Acc)}.
+
+%% Tent arc for open edge loops that have a ccw normal of {0,0,0}
+tent_arc(Edges, [_,V2|_], Norm, #we{vp=Vtab}=We) ->
+    V2pos = array:get(V2, Vtab),
+    TempV2pos = e3d_vec:add(V2pos, Norm),
+    TempVtab = array:set(V2, TempV2pos, Vtab),
+    We1 = We#we{vp=TempVtab},
+    {wings_edge_loop:edge_links(Edges, We1), TempVtab}.
+
+%% Tent vec when user plane is in effect and ccw norm is {0,0,0}
+establish_tent_vec(Plane, [_,V2|_]=Vs, Norm, #we{vp=Vtab}) ->
+    LastV = lists:last(Vs),
+    V2pos = array:get(V2, Vtab),
+    Lpos = array:get(LastV, Vtab),
+    Chord = e3d_vec:norm_sub(V2pos, Lpos),
+    Cr1 = e3d_vec:cross(Plane, Chord),
+    Cr2 = e3d_vec:neg(Cr1),
+    D1 = e3d_vec:dot(Cr1, Norm),
+    D2 = e3d_vec:dot(Cr2, Norm),
+    if D1 > D2 -> Cr1;
+       true -> Cr2
+    end.
+
+check_plane(Vs, We) ->
+    Normals = normals_for_surrounding_faces(Vs, We, []),
+    e3d_vec:average(Normals).
+
+check_for_user_plane(find_plane, CwNorm) -> CwNorm;
+check_for_user_plane(Plane, _) -> Plane.
+
+normals_for_surrounding_faces([V|Vs], We, Acc) ->
+    Normal = wings_vertex:normal(V, We),
+    normals_for_surrounding_faces(Vs, We, [Normal|Acc]);
+normals_for_surrounding_faces([], _, Acc) -> Acc.
 
 %% StartVs and EndVs are in 3rd of First and 2nd of Last
 arc_vs([{E,LastV,V}|[]], VAcc, EAcc) ->
@@ -481,6 +591,62 @@ make_arc_center_fun(Data, State) ->
          end, A, Data)
     end.
 
+%%%% Arc drag data LMB/RMB - Constant version
+%%%% Au lieu de répartir uniformément les angles, on conserve la direction
+%%%% angulaire de chaque sommet par rapport au centre de l'arc.
+make_arc_fun(Data0, State) ->
+    fun
+      (new_mode_data,{NewState,_}) ->
+        make_arc_fun(Data0, NewState);
+      ([Angle,_,Percent|_], A) ->
+        {Data,VertDistList} = Data0,
+        {CwNorm, Cross0, Opp, Plane0, SPos, Hinge, _NumVs} = Data,
+        {_Flatten,Orientation,_} = State,
+        Plane = reverse_norm(CwNorm, Plane0, Orientation),
+        Cross = reverse_norm(CwNorm, Cross0, Orientation),
+        %% Calculer le centre de rotation (identique à la version Uniform)
+        RotCenter = arc_rotation_center(Angle, Opp, Hinge, Cross),
+        %% Calculer le rayon = distance du centre au point de départ
+        Radius = e3d_vec:len(e3d_vec:sub(SPos, RotCenter)),
+        lists:foldl(fun({V,{Vpos,_Index}}, VsAcc) ->
+          NewPos = arc_constant(Vpos, RotCenter, Radius, Plane, State, Percent),
+          [{V, NewPos}|VsAcc]
+        end, A, VertDistList)
+    end.
+
+%% Calcule le centre de rotation pour un arc donné un angle
+arc_rotation_center(+0.0, _Opp, Hinge, _Cross) ->
+    %% Angle 0 : pas de courbure, le centre est à l'infini, on retourne Hinge
+    Hinge;
+arc_rotation_center(180.0, _Opp, Hinge, _Cross) ->
+    %% Demi-cercle : le centre est au hinge
+    Hinge;
+arc_rotation_center(Angle, Opp, Hinge, Cross) ->
+    HalfAngle = 90.0 - (Angle/2.0),
+    Radians = math:pi() / (180.0/HalfAngle),
+    Adj = math:tan(Radians) * Opp,
+    e3d_vec:add(Hinge, e3d_vec:mul(Cross, Adj)).
+
+%% Pour chaque sommet : projeter sur le plan, calculer le Ray depuis le centre,
+%% normaliser, multiplier par le rayon, puis interpoler avec la position d'origine
+arc_constant(Vpos, _Center, _Radius, _Plane, _State, +0.0) -> Vpos;
+arc_constant(Vpos, Center, Radius, Plane, {Flatten,_,_}, Percent) ->
+    %% Projeter le sommet sur le plan de l'arc
+    VposOnPlane = intersect_vec_plane(Vpos, Center, Plane),
+    %% Calculer le vecteur du centre vers le sommet projeté
+    Ray0 = e3d_vec:sub(VposOnPlane, Center),
+    Ray = e3d_vec:norm(Ray0),
+    %% Nouvelle position sur le cercle
+    Pos0 = e3d_vec:add(Center, e3d_vec:mul(Ray, Radius)),
+    %% Aplatir ou non
+    Pos1 = flatten(Flatten, Pos0, Vpos, Plane),
+    %% Interpoler entre position originale et nouvelle position
+    Norm = e3d_vec:sub(Pos1, Vpos),
+    e3d_vec:add(Vpos, e3d_vec:mul(Norm, Percent)).
+
+reverse_norm({+0.0,+0.0,+0.0}, Norm, reverse) -> e3d_vec:neg(Norm);
+reverse_norm(_, Norm, _) -> Norm.
+
 %%%% Circularise Mode, Diameter, and Percentage changes LMB/RMB
 make_circular_fun(Data, State) ->
     fun
@@ -577,5 +743,4 @@ circ_sel_error_3() ->
     wings_u:error_msg(?__(2,"Selections including single edges cannot be processed")).
 -spec circ_sel_error_4() -> no_return().
 circ_sel_error_4() ->
-    wings_u:error_msg(?__(2,"Selected edge loops must be non-intersecting, and be all closed.")).
-    
+    wings_u:error_msg(?__(2,"Selected edge loops must be non-intersecting, and be either all open or all closed.")).
