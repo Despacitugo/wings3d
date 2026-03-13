@@ -68,8 +68,9 @@ menu(X, Y, St) ->
 	      ?__(42,"Subdivide selected faces")},[]},
 	    {?__(29,"Tesselate"),{tesselate,wings_tesselation:submenu()}},
         {?__(46,"Lock"),lock_fun(),
-         {?__(47,"Lock selected faces (won't be subdivided)"),[],
-          ?__(48,"Unlock faces adjacent to selection")},[]},
+         {?__(47,"Lock selected faces (won't be subdivided)"),[]}},
+        {?__(49, "Unlock"),unlock_fun(),
+         {?__(50, "Unlock selected faces"),[]}},
 	    separator,
 	    {?__(32,"Hide"),hide_fun(),
 	     {?__(33,"Hide the selected faces"),[],
@@ -149,6 +150,12 @@ hole_fun() ->
 lock_fun() ->
     fun(1, _Ns) -> {face,lock};
        (3, _Ns) -> {face,unlock};
+       (_, _Ns) -> ignore
+    end.
+
+unlock_fun() ->
+    fun(1, _Ns) -> {face,unlock};
+       (3, _Ns) -> {face,lock};
        (_, _Ns) -> ignore
     end.
 
@@ -1662,6 +1669,7 @@ set_color(Color, St) ->
 %%%
 
 -define(LOCKED_FACES_KEY, locked_faces).
+-define(LOCKED_HARD_EDGES_KEY, locked_hard_edges).
 
 get_locked_faces(#we{pst=Pst}) ->
     case gb_trees:lookup(?LOCKED_FACES_KEY, Pst) of
@@ -1669,30 +1677,51 @@ get_locked_faces(#we{pst=Pst}) ->
         {value, Locked} -> Locked
     end.
 
+get_locked_hard_edges(#we{pst=Pst}) ->
+    case gb_trees:lookup(?LOCKED_HARD_EDGES_KEY, Pst) of
+        none -> gb_sets:empty();
+        {value, LockedHe} -> LockedHe
+    end.
+
 is_face_locked(Face, We) ->
     Locked = get_locked_faces(We),
     gb_sets:is_member(Face, Locked).
 
-%% Saved in pst
-lock_faces(Faces, #we{pst=Pst0}=We) ->
-    Locked0 = get_locked_faces(We),
-    FaceList = case is_list(Faces) of
-                   true -> Faces;
-                   false -> gb_sets:to_list(Faces)
-               end,
-    Locked = lists:foldl(fun gb_sets:add_element/2, Locked0, FaceList),
-    Pst = gb_trees:enter(?LOCKED_FACES_KEY, Locked, Pst0),
-    %% Mark edges of locked faces as hard to prevent subdivision from splitting them.
-    HardEdges = wings_face:outer_edges(gb_sets:from_list(FaceList), We),
-    He1 = lists:foldl(fun gb_sets:add_element/2, We#we.he, HardEdges),
-    We#we{pst=Pst, he=He1}.
+faces_to_list(Faces) when is_list(Faces) -> Faces;
+faces_to_list(Faces) -> gb_sets:to_list(Faces).
 
-unlock_faces(Faces, #we{pst=Pst0}=We) ->
-    Locked0 = get_locked_faces(We),
-    FaceList = case is_list(Faces) of
-                   true -> Faces;
-                   false -> gb_sets:to_list(Faces)
-               end,
-    Locked = lists:foldl(fun gb_sets:delete_any/2, Locked0, FaceList),
+set_locked_faces(Locked, #we{pst=Pst0}=We) ->
     Pst = gb_trees:enter(?LOCKED_FACES_KEY, Locked, Pst0),
     We#we{pst=Pst}.
+
+locked_border_edges(LockedFaces, We) ->
+    case gb_sets:is_empty(LockedFaces) of
+        true ->
+            gb_sets:empty();
+        false ->
+            %% Include all the inner edges
+            {_Vs, Es} = all_edges(LockedFaces, We),
+            gb_sets:from_list(Es)
+    end.
+
+sync_lock_hard_edges(LockedFaces, #we{he=He0,pst=Pst0}=We0) ->
+    OldLockHe = get_locked_hard_edges(We0),
+    NewLockHe = locked_border_edges(LockedFaces, We0),
+    He1 = gb_sets:union(gb_sets:difference(He0, OldLockHe), NewLockHe),
+    Pst = gb_trees:enter(?LOCKED_HARD_EDGES_KEY, NewLockHe, Pst0),
+    We0#we{he=He1,pst=Pst}.
+
+%% Saved in pst
+lock_faces(Faces, We0) ->
+    Locked0 = get_locked_faces(We0),
+    FaceList = faces_to_list(Faces),
+    Locked = lists:foldl(fun gb_sets:add_element/2, Locked0, FaceList),
+    We1 = set_locked_faces(Locked, We0),
+    sync_lock_hard_edges(Locked, We1).
+
+unlock_faces(Faces, We0) ->
+    Locked0 = get_locked_faces(We0),
+    FaceList = faces_to_list(Faces),
+    Locked = lists:foldl(fun gb_sets:delete_any/2, Locked0, FaceList),
+    We1 = set_locked_faces(Locked, We0),
+    sync_lock_hard_edges(Locked, We1).
