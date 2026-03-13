@@ -591,9 +591,7 @@ make_arc_center_fun(Data, State) ->
          end, A, Data)
     end.
 
-%%%% Arc drag data LMB/RMB - Constant version
-%%%% Au lieu de répartir uniformément les angles, on conserve la direction
-%%%% angulaire de chaque sommet par rapport au centre de l'arc.
+%%%% Arc drag data - Constant version
 make_arc_fun(Data0, State) ->
     fun
       (new_mode_data,{NewState,_}) ->
@@ -604,9 +602,7 @@ make_arc_fun(Data0, State) ->
         {_Flatten,Orientation,_} = State,
         Plane = reverse_norm(CwNorm, Plane0, Orientation),
         Cross = reverse_norm(CwNorm, Cross0, Orientation),
-        %% Calculer le centre de rotation (identique à la version Uniform)
         RotCenter = arc_rotation_center(Angle, Opp, Hinge, Cross),
-        %% Calculer le rayon = distance du centre au point de départ
         Radius = e3d_vec:len(e3d_vec:sub(SPos, RotCenter)),
         lists:foldl(fun({V,{Vpos,_Index}}, VsAcc) ->
           NewPos = arc_constant(Vpos, RotCenter, Radius, Plane, State, Percent),
@@ -614,12 +610,11 @@ make_arc_fun(Data0, State) ->
         end, A, VertDistList)
     end.
 
-%% Calcule le centre de rotation pour un arc donné un angle
+%% Calculates the center of rotation based on the angle
 arc_rotation_center(+0.0, _Opp, Hinge, _Cross) ->
-    %% Angle 0 : pas de courbure, le centre est à l'infini, on retourne Hinge
     Hinge;
 arc_rotation_center(180.0, _Opp, Hinge, _Cross) ->
-    %% Demi-cercle : le centre est au hinge
+    % The center of rotation is the opposite of the hinge point
     Hinge;
 arc_rotation_center(Angle, Opp, Hinge, Cross) ->
     HalfAngle = 90.0 - (Angle/2.0),
@@ -627,20 +622,18 @@ arc_rotation_center(Angle, Opp, Hinge, Cross) ->
     Adj = math:tan(Radians) * Opp,
     e3d_vec:add(Hinge, e3d_vec:mul(Cross, Adj)).
 
-%% Pour chaque sommet : projeter sur le plan, calculer le Ray depuis le centre,
-%% normaliser, multiplier par le rayon, puis interpoler avec la position d'origine
+%% For each vertex, calculates the ray from the center to the vertex, normalizes it, multiplies by the radius,
+%% and adds it to the center to get the position on the arc. Then interpolates between the original position and the position on the arc by Percent.
 arc_constant(Vpos, _Center, _Radius, _Plane, _State, +0.0) -> Vpos;
 arc_constant(Vpos, Center, Radius, Plane, {Flatten,_,_}, Percent) ->
-    %% Projeter le sommet sur le plan de l'arc
     VposOnPlane = intersect_vec_plane(Vpos, Center, Plane),
-    %% Calculer le vecteur du centre vers le sommet projeté
+    % Calculates the ray from the center to the projected point and normalizes it
     Ray0 = e3d_vec:sub(VposOnPlane, Center),
     Ray = e3d_vec:norm(Ray0),
-    %% Nouvelle position sur le cercle
+    % Get the new position on the circle
     Pos0 = e3d_vec:add(Center, e3d_vec:mul(Ray, Radius)),
-    %% Aplatir ou non
     Pos1 = flatten(Flatten, Pos0, Vpos, Plane),
-    %% Interpoler entre position originale et nouvelle position
+    % Interpolate between original position and position on circle
     Norm = e3d_vec:sub(Pos1, Vpos),
     e3d_vec:add(Vpos, e3d_vec:mul(Norm, Percent)).
 
