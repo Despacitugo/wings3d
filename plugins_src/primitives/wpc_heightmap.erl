@@ -55,7 +55,11 @@ make_heightmap(Ask) ->
             Qs = [{vframe,
                    [{label_column,
                      [{"Image",
-                       {menu, MenuItems, DefId, [{key,image_id}]}}
+                       {menu, MenuItems, DefId, [{key,image_id}]}},
+                       "Size",
+                       {text, 2.0, [{key,size},{range,{0.01,infinity}}]},
+                       {"Max Height",
+                        {text, 1.0, [{key,max_height},{range,{0.001,infinity}}]}}
                      ]}
                    ]}],
             wings_dialog:dialog(Ask, "Heightmap Grid", Qs,
