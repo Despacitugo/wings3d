@@ -70,6 +70,57 @@ make_heightmap(Ask) ->
 
 make_heightmap_1(Params) ->
     ImageId = proplists:get_value(image_id, Params),
-    io:format("HeightMap: selected image id = ~p~n", [ImageId]),
-    %% TODO: generate heightmap
-    keep.
+    case ImageId of
+        undefined ->
+            wings_u:message("No image selected."),
+            keep;
+        _ ->
+            make_heightmap_from_image(ImageId)
+    end.
+
+make_heightmap_from_image(ImageId) ->
+    Img0 = wings_image:info(ImageId),
+    Img = e3d_image:convert(Img0, g8, 1, upper_left),
+    #e3d_image{width=Width,height=Height,image=Pixels} = Img,
+    case Width >= 2 andalso Height >= 2 of
+        false ->
+            wings_u:message("Heightmap image must be at least 2x2 pixels."),
+            keep;
+        true ->
+            Vs0 = heightmap_vertices(Width, Height, Pixels),
+            Fs0 = heightmap_faces(Width, Height),
+            {BaseVs, BaseFace} = heightmap_base(Width, Height),
+            Vs = Vs0 ++ BaseVs,
+            Fs = Fs0 ++ [BaseFace],
+            {new_shape, "Heightmap Grid", Fs, Vs}
+    end.
+
+heightmap_vertices(Width, Height, Pixels) ->
+    HalfW = (Width - 1) / 2.0,
+    HalfH = (Height - 1) / 2.0,
+    [{X - HalfW,
+      (float(binary:at(Pixels, Y*Width + X))) * 0.2,
+      Y - HalfH}
+     || Y <- lists:seq(0, Height-1), X <- lists:seq(0, Width-1)].
+
+heightmap_faces(Width, Height) ->
+        [{default,
+            [idx(X, Y, Width),
+             idx(X, Y+1, Width),
+             idx(X+1, Y+1, Width),
+             idx(X+1, Y, Width)]}
+     || Y <- lists:seq(0, Height-2), X <- lists:seq(0, Width-2)].
+
+heightmap_base(Width, Height) ->
+    HalfW = (Width - 1) / 2.0,
+    HalfH = (Height - 1) / 2.0,
+    BaseVs = [{-HalfW, 0.0, -HalfH},
+              {-HalfW, 0.0,  HalfH},
+              { HalfW, 0.0,  HalfH},
+              { HalfW, 0.0, -HalfH}],
+    I0 = Width*Height,
+    BaseFace = {default, [I0, I0+1, I0+2, I0+3]},
+    {BaseVs, BaseFace}.
+
+idx(X, Y, Width) ->
+    Y*Width + X.
