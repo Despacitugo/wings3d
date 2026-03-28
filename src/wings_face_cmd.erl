@@ -653,6 +653,11 @@ do_flatten_normal(Faces, Center, We) ->
 subdiv(St) ->
     wings_sel:map_update_sel(fun subdiv/2, St).
 
+%%% Subfiv function has been changed to work with the lock feature.
+%%% If a face is locked, it shouldn't be subdivided, but the current implementation doesn't work
+%%% in the intended way. The subdivision can still occure even on some vertices of the locked faces.
+%%% In the future, the implementation should be changed to make sure that the locked faces are not subdivided at all.
+
 subdiv(Faces0, We0) ->
     Locked = get_locked_faces(We0),
     Faces1 = gb_sets:difference(Faces0, Locked),
@@ -1641,8 +1646,23 @@ on_target(vertex, V, We) ->
     Center = wings_vertex:pos(V, We),
     {N,Center}.
 
+
+
+%%%
+%%% Set vertex color for selected faces.
+%%%
+
+set_color(Color, St) ->
+    wings_sel:map(fun(Fs, We) ->
+			  wings_va:set_face_color(Fs, Color, We)
+		  end, St).
+
+%% ...existing code...
+
 %%%
 %%% Lock/Unlock command handlers
+%%% - lock/1: lock currently selected faces per object, then clear selection
+%%% - unlock/1: unlock currently selected faces per object, then clear selection
 %%%
 
 lock(St) ->
@@ -1654,54 +1674,58 @@ unlock(St) ->
     wings_sel:clear(St1).
 
 %%%
-%%% Set vertex color for selected faces.
+%%% Lock/Unlock faces persistence and hard-edge synchronization
 %%%
-
-set_color(Color, St) ->
-    wings_sel:map(fun(Fs, We) ->
-			  wings_va:set_face_color(Fs, Color, We)
-		  end, St).
-
-%%%
-%%% Lock/Unlock faces
+%%% Data stored in #we.pst:
+%%% - ?LOCKED_FACES_KEY: gb_set of locked face ids
+%%% - ?LOCKED_HARD_EDGES_KEY: gb_set of hard edges created by the lock feature
+%%%   (tracked separately so user-created hard edges are preserved on unlock)
 %%%
 
 -define(LOCKED_FACES_KEY, locked_faces).
 -define(LOCKED_HARD_EDGES_KEY, locked_hard_edges).
 
+%% Returns locked faces set from plugin state; empty if missing
 get_locked_faces(#we{pst=Pst}) ->
     case gb_trees:lookup(?LOCKED_FACES_KEY, Pst) of
         none -> gb_sets:empty();
         {value, Locked} -> Locked
     end.
 
+%% Returns lock-managed hard edges set from plugin state; empty if missing
 get_locked_hard_edges(#we{pst=Pst}) ->
     case gb_trees:lookup(?LOCKED_HARD_EDGES_KEY, Pst) of
         none -> gb_sets:empty();
         {value, LockedHe} -> LockedHe
     end.
 
+%% Returns true if Face is currently locked
 is_face_locked(Face, We) ->
     Locked = get_locked_faces(We),
     gb_sets:is_member(Face, Locked).
 
+%% Accept both list and gb_set as input and normalize to list
 faces_to_list(Faces) when is_list(Faces) -> Faces;
 faces_to_list(Faces) -> gb_sets:to_list(Faces).
 
+%% Writes the locked face set back to plugin state
 set_locked_faces(Locked, #we{pst=Pst0}=We) ->
     Pst = gb_trees:enter(?LOCKED_FACES_KEY, Locked, Pst0),
     We#we{pst=Pst}.
 
+%% Computes edges to mark hard for lock:
+%% includes both outer border and inner edges between locked faces
 locked_border_edges(LockedFaces, We) ->
     case gb_sets:is_empty(LockedFaces) of
         true ->
             gb_sets:empty();
         false ->
-            %% Include all the inner edges
             {_Vs, Es} = all_edges(LockedFaces, We),
             gb_sets:from_list(Es)
     end.
 
+%% Rebuilds lock-managed hard edges while preserving user hard edges:
+%% He1 = (CurrentHardEdges - OldLockHardEdges) U NewLockHardEdges
 sync_lock_hard_edges(LockedFaces, #we{he=He0,pst=Pst0}=We0) ->
     OldLockHe = get_locked_hard_edges(We0),
     NewLockHe = locked_border_edges(LockedFaces, We0),
@@ -1709,7 +1733,7 @@ sync_lock_hard_edges(LockedFaces, #we{he=He0,pst=Pst0}=We0) ->
     Pst = gb_trees:enter(?LOCKED_HARD_EDGES_KEY, NewLockHe, Pst0),
     We0#we{he=He1,pst=Pst}.
 
-%% Saved in pst
+%% Locks given faces, persists state, then updates lock-managed hard edges
 lock_faces(Faces, We0) ->
     Locked0 = get_locked_faces(We0),
     FaceList = faces_to_list(Faces),
@@ -1717,9 +1741,12 @@ lock_faces(Faces, We0) ->
     We1 = set_locked_faces(Locked, We0),
     sync_lock_hard_edges(Locked, We1).
 
+%% Unlocks given faces, persists state, then updates lock-managed hard edges
 unlock_faces(Faces, We0) ->
     Locked0 = get_locked_faces(We0),
     FaceList = faces_to_list(Faces),
     Locked = lists:foldl(fun gb_sets:delete_any/2, Locked0, FaceList),
     We1 = set_locked_faces(Locked, We0),
     sync_lock_hard_edges(Locked, We1).
+
+%% ...existing code...
