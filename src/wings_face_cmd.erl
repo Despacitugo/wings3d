@@ -1646,8 +1646,6 @@ on_target(vertex, V, We) ->
     Center = wings_vertex:pos(V, We),
     {N,Center}.
 
-
-
 %%%
 %%% Set vertex color for selected faces.
 %%%
@@ -1656,8 +1654,6 @@ set_color(Color, St) ->
     wings_sel:map(fun(Fs, We) ->
 			  wings_va:set_face_color(Fs, Color, We)
 		  end, St).
-
-%% ...existing code...
 
 %%%
 %%% Lock/Unlock command handlers
@@ -1748,5 +1744,3 @@ unlock_faces(Faces, We0) ->
     Locked = lists:foldl(fun gb_sets:delete_any/2, Locked0, FaceList),
     We1 = set_locked_faces(Locked, We0),
     sync_lock_hard_edges(Locked, We1).
-
-%% ...existing code...
