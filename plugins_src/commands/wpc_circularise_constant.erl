@@ -233,6 +233,10 @@ get_point(edge, E, #we{es=Etab,vp=Vtab}) ->
 %    Data Setup     %
 % % % % % % % % % % %
 
+%%%M Many functions has been added and looks similar to the implementation of Circularise Uniform
+%%%% The real differences are the in the function make_arc_fun which calculates the new position 
+%%%% of the vertex on the arc based on the original position of the vertex and the position on the arc, 
+%%%% rather than equalising all vertices to the same distance from the center point.
 %%%% Arc Setup MMB
 arc_center_setup(Plane, Center, St0) ->
     Flatten = wings_pref:get_value(circularise_flatten, true),
@@ -247,6 +251,7 @@ arc_center_setup(Plane, Center, St0) ->
     DF = fun(_, #we{temp=Tv}) -> Tv end,
     Flags = [{mode,{arc_modes(),State}},{initial,[1.0]}],
     wings_drag:fold(DF, [percent], Flags, St).
+
 
 arc_center_setup_1(VData, Plane, Center, Vtab) ->
     lists:foldl(fun(ArcVs, {VlistAcc,DataAcc}) ->
@@ -294,18 +299,20 @@ arc_setup(State, Plane, VsData, We, TentVec) ->
 
 arc_setup(State, Plane0, [VsList|Loops], #we{vp=Vtab}=We, TentVec0, Acc0) ->
     {Vs0,Edges} = arc_vs(VsList, [], []),
-    CwNorm = wings_face:face_normal_cw(Vs0, Vtab),
-    case e3d_vec:is_zero(CwNorm) of
-        true when Plane0 =:= find_plane -> %% LMB
+    CwNorm = wings_face:face_normal_cw(Vs0, Vtab), % Computes a clockwise "polygon normal" from the vertex list
+    case e3d_vec:is_zero(CwNorm) of 
+        true when Plane0 =:= find_plane -> %% LMB 
+            %% The loop is degenerate (normal is zero), so we infer a plane from surrounding geometry
             SurfaceNorm = check_plane(Vs0, We),
-            {[NewVsList], TempVtab} = tent_arc(Edges, Vs0, SurfaceNorm, We),
+            {[NewVsList], TempVtab} = tent_arc(Edges, Vs0, SurfaceNorm, We), %% We want to lift temporarily a vertex because the normal is zero. Now the normal can be calculated
             {Vs,_} = arc_vs(NewVsList, [], []),
             CwNorm1 = wings_face:face_normal_ccw(Vs, TempVtab),
             {Vlist,DegVertList} = make_degree_vert_list(Vs, TempVtab, 0, [], []),
             TentVec = TentVec0,
             Norm = CwNorm1;
         true -> %% RMB
-            TentVec = case TentVec0 of
+            %%The normal is still zero, but the user has specified a plane, so we use that plane to establish a normal and tent vec
+            TentVec = case TentVec0 of %% 
                 tent_vec ->
                     SurfaceNorm = check_plane(Vs0, We),
                     establish_tent_vec(Plane0, Vs0, SurfaceNorm, We);
@@ -317,11 +324,13 @@ arc_setup(State, Plane0, [VsList|Loops], #we{vp=Vtab}=We, TentVec0, Acc0) ->
             {Vlist,DegVertList} = make_degree_vert_list(Vs, TempVtab, 0, [], []),
             Norm = CwNorm1;
         false when Plane0 =:= find_plane -> %% LMB
+            %% Auto plane and the normal is valid
             Vs = Vs0,
             {Vlist,DegVertList} = make_degree_vert_list(Vs0, Vtab, 0, [], []),
             TentVec = TentVec0,
             Norm = e3d_vec:neg(CwNorm);
         false -> %% RMB
+            %% User plane and the normal is valid
             Plane = check_for_user_plane(Plane0, CwNorm),
             Vs = check_vertex_order(Vs0, Plane, CwNorm),
             {Vlist,DegVertList} = make_degree_vert_list(Vs, Vtab, 0, [], []),

@@ -96,6 +96,7 @@ make_thread(Arg0, _St) ->
               {maps:get(mov_x, Arg), maps:get(mov_y, Arg), maps:get(mov_z, Arg)},
               maps:get(ground, Arg)],
 
+    %% Geometry fix: keep exact thread length (no extra half-row at ends)
     Height = Pitch*Occurrences,
     Rows = Occurrences,
     make_thread(Type, Dir, Sections, Height, TopRadius, BotRadius, CrestH, Pitch, Rows, Modify).
@@ -122,11 +123,12 @@ thread_verts(Type, Sections, TopRadius, BotRadius, CrestH, Pitch, Rows, Height) 
     SubPitchInc = Pitch/Sections,
     Delta = pi()*2/Sections,
     Rings = lists:seq(Sections-1,0,-1),
-    %% Initial trough ring at the top
+    %% Geometry fix: start with a trough ring so the first crest is complete
     RingTop = ring_of_verts(Type, Rings, SubPitchInc, Delta, Y, TopRadius),
     Body = lists:foldr(fun(Idx, Acc) ->
                     YInc = Idx*Pitch,
                     RInc = Idx*RadInc,
+                    %% Ring0 = crest peak, Ring1 = trough base for one full row profile
                     Ring0 = ring_of_verts(Type, Rings, SubPitchInc, Delta, Y-(YInc+PitchInc), TopRadius+RInc+CrestH),
                     Ring1 = ring_of_verts(Type, Rings, SubPitchInc, Delta, Y-(YInc+Pitch), TopRadius+RInc+RadInc),
                     Ring0++Ring1++Acc
@@ -134,6 +136,8 @@ thread_verts(Type, Sections, TopRadius, BotRadius, CrestH, Pitch, Rows, Height) 
     RingTop ++ Body.
 
 thread_faces(helicoid=Type, N, Rows) ->
+    %% Geometry fix: with RingTop + (crest,trough)*Rows we have (2*Rows+1) rings,
+    %% before side spans are indexed from 0..(2*Rows-1).
     R0 = Rows*2-1,
     R = Rows*2*N,
     Top = lists:seq(0,N-1),
@@ -141,6 +145,7 @@ thread_faces(helicoid=Type, N, Rows) ->
     Sides = build_sides(Type,R0,N),
     [Top, Bottom | Sides];
 thread_faces(non_helicoid=Type, N, Rows) ->
+    %% Same ring accounting as helicoid; this keeps top/bottom caps aligned to full rows
     R0 = Rows*2-1,
     R = Rows*2*N,
     Top = lists:reverse(lists:seq(N-1,0,-1)),
@@ -159,13 +164,17 @@ build_sides(non_helicoid=Type, R, N) ->
 build_sides(_, Idx, R, _, _, Acc) when Idx > R ->
     Acc;
 build_sides(helicoid=Type, Idx, R, N, Ns, Acc) ->
+    %% Geometry fix: connect ring Idx to ring Idx+1; seam is handled by Stitch below
     Sides = [[Idx*N + I, (Idx+1)*N + I,
               (Idx+1)*N + ((I+1) rem N), Idx*N + ((Idx*N+I+1) rem N)] || I <- Ns],
     if Idx < (R-1) ->
+        %% Intermediate seam bridge (quad)
         Stitch = [[Idx*N + N-1, (Idx+1)*N + N-1, (Idx+2)*N + N, (Idx+2)*N]];
         Idx < R ->
+            %% Last regular bridge before bottom cap (triangle)
             Stitch = [[Idx*N + N-1, (Idx+1)*N + N-1, (Idx+2)*N]];
         true ->
+            %% Final closure at the end of the helicoid seam
             Stitch = [[Idx*N + N-1, (Idx+1)*N + N-1, (Idx+1)*N]]
     end,
     build_sides(Type,Idx+1,R,N,Ns,Acc++Sides++Stitch);

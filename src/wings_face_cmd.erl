@@ -1132,7 +1132,7 @@ bridge_error(Error) ->
     wings_u:error_msg(Error).
 
 %%%
-%%% The Pole command.
+%%% The Pole command. Added easily by reusing implemented functions for Wings
 %%%
 
 pole(St) ->
@@ -1153,8 +1153,6 @@ pole(Faces, We) ->
             FinalFaces = wings_we:new_items_as_gbset(face, We2, We3),
             {We3, FinalFaces}
     end.
-    
-
 
 %%%
 %%% The Lift command.

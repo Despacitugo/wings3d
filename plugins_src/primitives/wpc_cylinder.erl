@@ -148,6 +148,9 @@ cylinder_faces(N) ->
     Sides= [[I, (I+1) rem N, N + (I+1) rem N, N + I] || I <- Ns],
     [Upper, Lower | Sides].
 
+
+%%% Slicing functions certainly needs refactoring to avoid code duplication with the non-sliced versions, but for now they are separate for clarity
+%%% as they have been done for the PFE 2026
 cylinder_verts_slice(Sections, TopX, TopZ, BotX, BotZ, Height, Slice) ->
     Slice0 = round(Slice),
     YAxis = Height/2,
@@ -155,21 +158,27 @@ cylinder_verts_slice(Sections, TopX, TopZ, BotX, BotZ, Height, Slice) ->
     Rings = lists:seq(0, Sections-1),
     lists:flatten([
         begin
-            T = I / Slice0,
+            T = I / Slice0, % We calculate the interpolation factor T based on the current slice index I and the total number of slices Slice0
             Y = YAxis - (T * Height),
-            Rx = TopX + T * (BotX - TopX),
+            Rx = TopX + T * (BotX - TopX), % Linear interpolation of the radius to avoid problems if for example the top radius is zero and the bottom radius is not
             Rz = TopZ + T * (BotZ - TopZ),
-            ring_of_verts(Rings, Delta, Y, Rx, Rz, 0.0)
+            ring_of_verts(Rings, Delta, Y, Rx, Rz, 0.0) % If we have a cylinder with 4 sections, this will create
         end || I <- lists:seq(0, Slice0)
     ]).
 
+%%% This function will generate the faces by creating the list of a list of 4 vertices to make each face.
 cylinder_faces_slice(Sections, NumSlice) ->
     NumSlice0 = round(NumSlice),
     Ns = lists:reverse(lists:seq(0, Sections-1)),
     Upper = Ns,
     Lower = lists:seq(Sections * NumSlice0, Sections * (NumSlice0 + 1) - 1),
-    Sides = [[I + Sections * S, (I + 1) rem Sections + Sections * S, (I + 1) rem Sections + Sections * (S + 1), I + Sections * (S + 1)]
-             || S <- lists:seq(0, NumSlice0 - 1), I <- Ns],
+    %% If sections is 4 and slices is 2, this will create the faces [[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7]] 
+    %% for the first slice and [[4,5,9,8],[5,6,10,9],[6,7,11,10],[7,4,8,11]] for the second slice
+    Sides = [[I + Sections * S, 
+            (I + 1) rem Sections + Sections * S, 
+            (I + 1) rem Sections + Sections * (S + 1), 
+            I + Sections * (S + 1)]
+             || S <- lists:seq(0, NumSlice0 - 1), I <- Ns], %% Double comprehension list, for each slice, for each section
     [Upper, Lower | Sides].
 
 %%%
@@ -220,6 +229,11 @@ gear_faces(Nres) ->
 		  || I <- lists:seq(2, Nres-2, 2)]
 		  ++ [[Nres, 0, 2*Nres, 3*Nres]], % the last face
     [TopFace]++[BotFace] ++ InnerFaces++OuterFaces ++ SideFacesO++SideFacesE.
+
+%%%%
+%%%% For gear, tube, and pie the slicing functions are similar to the cylinder slices functions,
+%%%% at the sole exception of the way the vertices and faces are generated
+%%%%
 
 gear_verts_slice(Sections, TopX, TopZ, BotX, BotZ, Height, ToothHeight, Slice) ->
     Slice0 = round(Slice),
